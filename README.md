@@ -44,13 +44,13 @@ Languages:
 
 Arsenal FC Performance Analysis (Streamlit app)
 
-###🚆 Railway & Infrastructure Analytics
+### 🚆 Railway & Infrastructure Analytics
 
 * Cost tracking and deviation analysis
 * Construction progress dashboards
 * Risk and schedule analysis
 
-###⚙️ Construction Automation
+### ⚙️ Construction Automation
 
 * Automated reporting tools
 * Data extraction and cleaning pipelines
