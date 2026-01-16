@@ -42,7 +42,7 @@ Languages:
 ## 📂 Project Categories
 ### ⚽ Football Analytics
 
-Arsenal FC Performance Analysis (Streamlit app)
+* Arsenal FC Performance Analysis (Streamlit app)
 
 ### 🚆 Railway & Infrastructure Analytics
 
