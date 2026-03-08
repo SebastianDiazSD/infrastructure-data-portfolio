@@ -1,94 +1,99 @@
-# Infrastructure & Data Portfolio  
-**Sebastian Arce Diaz** 🇨🇴🇩🇪  
-Civil Engineer | Railway & Infrastructure Analytics | Automation
+# 🏗️ Infrastructure & Data Portfolio
+
+**Sebastian Arce Diaz** · Civil Engineer × CS Master's Student  
+Railway Infrastructure · Construction Analytics · Python Automation
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Sebastian_Arce_Diaz-0A66C2?style=flat&logo=linkedin)](https://www.linkedin.com/in/sebastian-arce-diaz91/)
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=streamlit&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat&logo=pandas&logoColor=white)
+![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=flat&logo=plotly&logoColor=white)
 
 ---
 
-## 👋 Welcome
+## 👋 About this repository
 
-This portfolio brings together **civil engineering**, **railway infrastructure**,  
-and **data-driven decision-making**.
+This portfolio applies **data engineering and software development** to problems I've lived as a civil and railway engineer.
 
-My focus is simple and practical:
+Every project here is inspired by real challenges I encountered at Deutsche Bahn and on large infrastructure programmes — cost overruns, schedule slippage, reporting overhead, and the difficulty of making sense of messy project data under deadline pressure.
 
-> Use data and automation to make infrastructure projects **clearer, safer, and more controllable**.
-
-I work at the intersection of:
-- Infrastructure project management
-- Railway systems
-- Data analytics & Python automation
-
-This repository contains **realistic projects**, inspired by real-world challenges in large infrastructure programs.
+The goal: **turn raw project data into decisions**.
 
 ---
 
-## 👤 About Me
+## 📂 Projects
 
-I am a civil engineer with over 5 years of experience in railway infrastructure projects, including:
-
-* Project Engineering at Deutsche Bahn (2020–2025)
-* Current role as Bauüberwacher Bahn in Germany
-
-Alongside my engineering career, I specialize in Python-based data analysis, automation, and decision-support tools for infrastructure projects.
-
-Languages:
-
-* Spanish (native)
-* English (fluent)
-* German (fluent)
-
----
-
-## 📂 Project Categories
 ### ⚽ Football Analytics
 
-* Arsenal FC Performance Analysis (Streamlit app)
+| Project | Description | Tech | Status |
+|---------|-------------|------|--------|
+| [Arsenal FC Performance Analysis](./football-analytics/arsenal-fc-analysis) | Interactive Streamlit dashboard analysing Arsenal's season performance: goals, xG, pass accuracy, defensive metrics. Scrapes live StatsBomb data. | Streamlit, Pandas, Plotly, StatsBomb API | ✅ Live |
 
-### 🚆 Railway & Infrastructure Analytics
-
-* Cost tracking and deviation analysis
-* Construction progress dashboards
-* Risk and schedule analysis
-
-### ⚙️ Construction Automation
-
-* Automated reporting tools
-* Data extraction and cleaning pipelines
-* Each project is self-contained and documented in its own folder.
+> **Screenshot:**  
+> ![Arsenal Dashboard](./docs/screenshots/arsenal-dashboard.png)
 
 ---
 
-## 🧱 Portfolio Structure
+### 🚆 Railway & Infrastructure Analytics *(incoming)*
 
-```bash
+| Project | Description | Tech | Status |
+|---------|-------------|------|--------|
+| Cost Deviation Tracker | Visualises planned vs actual costs across project phases. Flags deviation thresholds and produces PDF summary reports. | Pandas, Plotly, ReportLab | 🚧 In progress |
+| Schedule Risk Dashboard | Monte Carlo simulation on activity durations to estimate P50/P80 completion dates. | NumPy, Plotly | 📋 Planned |
+| Progress S-Curve Generator | Generates earned-value S-curves from raw progress data exports. | Pandas, Matplotlib | 📋 Planned |
+
+---
+
+### ⚙️ Construction Automation *(incoming)*
+
+| Project | Description | Tech | Status |
+|---------|-------------|------|--------|
+| Automated Weekly Report Generator | Pulls data from Excel tracker → fills a Word template → emails it. Saves ~2 hours/week of manual work. | openpyxl, python-docx, smtplib | 🚧 In progress |
+| Data Cleaning Pipeline | Cleans and normalises messy cost exports from SAP/primavera into analysis-ready DataFrames. | Pandas, regex | 📋 Planned |
+
+---
+
+## 🗂️ Repository Structure
+
+```
 infrastructure-data-portfolio/
 │
 ├── football-analytics/
-│ └── arsenal-fc-analysis/
+│   └── arsenal-fc-analysis/        ← ✅ complete
 │
 ├── railway-analytics/
-│ └── project-cost-tracking/  #incoming projects
+│   ├── cost-deviation-tracker/     ← 🚧 in progress
+│   ├── schedule-risk-dashboard/    ← 📋 planned
+│   └── s-curve-generator/          ← 📋 planned
 │
 ├── construction-automation/
-│ └── report-generator/        #incoming projects
+│   ├── report-generator/           ← 🚧 in progress
+│   └── data-cleaning-pipeline/     ← 📋 planned
+│
+├── docs/
+│   └── screenshots/                ← add project screenshots here
 │
 └── about-me/
-└── cv.md
+    └── cv.md
 ```
 
 ---
 
 ## 🧠 Skills & Tools
 
-* Python (Pandas, NumPy, Scikit-learn)
-* Data Visualization (Matplotlib, Seaborn, Plotly, Bokeh)
-* Web Automation (Selenium, Playwright, BeautifulSoup)
-* Streamlit
-* Infrastructure project management
+**Data & Analysis:** Python · Pandas · NumPy · Scikit-learn  
+**Visualisation:** Plotly · Matplotlib · Seaborn · Streamlit  
+**Automation:** Selenium · BeautifulSoup · Playwright  
+**Infrastructure domain:** Railway project management · Earned Value · Risk analysis · Deutsche Bahn standards  
+**Languages:** Spanish (native) · English (fluent) · German (fluent)
 
 ---
 
-## 📬 Contact
+## 🤝 Collaboration & Consulting
 
-If you are interested in collaboration or consulting, feel free to reach out via LinkedIn - [Sebastian Arce Diaz](https://www.linkedin.com/in/sebastian-arce-diaz91/).
+Available for consulting on:
+- Data tooling for infrastructure and construction projects
+- Python automation of project reporting workflows
+- Dashboard development for site and programme teams
 
+📬 [LinkedIn — Sebastian Arce Diaz](https://www.linkedin.com/in/sebastian-arce-diaz91/)
