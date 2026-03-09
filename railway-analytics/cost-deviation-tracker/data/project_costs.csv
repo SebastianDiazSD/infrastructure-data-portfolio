@@ -1,0 +1,26 @@
+project_id,project_name,work_package,budget_eur,actual_cost_eur,deviation_eur,deviation_pct,progress_pct,start_date,end_date,risk_level
+PRJ-001,Electrification – Northern Corridor,Civil Works,12600000.0,14737860.0,2137860.0,16.97,65.6,2023-01-01,2025-06-30,High
+PRJ-001,Electrification – Northern Corridor,Overhead Line Equipment,11760000.0,11998981.0,238981.0,2.03,61.0,2023-01-01,2025-06-30,Low
+PRJ-001,Electrification – Northern Corridor,Substations,9240000.0,9365750.0,125750.0,1.36,42.0,2023-01-01,2025-06-30,Low
+PRJ-001,Electrification – Northern Corridor,Testing & Commissioning,5040000.0,5108596.0,68596.0,1.36,70.3,2023-01-01,2025-06-30,Low
+PRJ-001,Electrification – Northern Corridor,Project Management,3360000.0,3894108.0,534108.0,15.9,40.7,2023-01-01,2025-06-30,High
+PRJ-002,Track Renewal – Zone B,Track Removal,2775000.0,3007324.0,232324.0,8.37,99.5,2023-03-01,2024-12-31,Medium
+PRJ-002,Track Renewal – Zone B,Earthworks,4625000.0,4962868.0,337868.0,7.31,87.7,2023-03-01,2024-12-31,Medium
+PRJ-002,Track Renewal – Zone B,New Track Laying,6475000.0,6915165.0,440165.0,6.8,87.8,2023-03-01,2024-12-31,Medium
+PRJ-002,Track Renewal – Zone B,Drainage,3145000.0,3292618.0,147618.0,4.69,91.5,2023-03-01,2024-12-31,Low
+PRJ-002,Track Renewal – Zone B,Project Management,1480000.0,1456817.0,-23183.0,-1.57,89.4,2023-03-01,2024-12-31,Low
+PRJ-003,Signal System Upgrade – Main Line,Cable Installation,6200000.0,5946431.0,-253569.0,-4.09,68.8,2022-09-01,2025-03-31,Low
+PRJ-003,Signal System Upgrade – Main Line,Signal Hardware,9300000.0,9783575.0,483575.0,5.2,71.0,2022-09-01,2025-03-31,Medium
+PRJ-003,Signal System Upgrade – Main Line,Software Integration,8680000.0,9830928.0,1150928.0,13.26,66.0,2022-09-01,2025-03-31,High
+PRJ-003,Signal System Upgrade – Main Line,Testing,4340000.0,4401609.0,61609.0,1.42,75.4,2022-09-01,2025-03-31,Low
+PRJ-003,Signal System Upgrade – Main Line,Project Management,2480000.0,2610897.0,130897.0,5.28,78.2,2022-09-01,2025-03-31,Medium
+PRJ-004,Station Rehabilitation – Central Hub,Structural Works,3430000.0,3879646.0,449646.0,13.11,87.6,2023-06-01,2024-09-30,High
+PRJ-004,Station Rehabilitation – Central Hub,M&E Services,2156000.0,2130032.0,-25968.0,-1.2,95.3,2023-06-01,2024-09-30,Low
+PRJ-004,Station Rehabilitation – Central Hub,Finishes & Fit-out,2744000.0,2770291.0,26291.0,0.96,91.6,2023-06-01,2024-09-30,Low
+PRJ-004,Station Rehabilitation – Central Hub,Accessibility,784000.0,806779.0,22779.0,2.91,85.5,2023-06-01,2024-09-30,Low
+PRJ-004,Station Rehabilitation – Central Hub,Project Management,686000.0,704601.0,18601.0,2.71,98.6,2023-06-01,2024-09-30,Low
+PRJ-005,Bridge Replacement – Km 47.3,Demolition,624000.0,678649.0,54649.0,8.76,89.7,2023-08-01,2024-11-30,Medium
+PRJ-005,Bridge Replacement – Km 47.3,Foundation Works,1456000.0,1452965.0,-3035.0,-0.21,92.8,2023-08-01,2024-11-30,Low
+PRJ-005,Bridge Replacement – Km 47.3,Steel Structure,1664000.0,1559213.0,-104787.0,-6.3,99.5,2023-08-01,2024-11-30,Low
+PRJ-005,Bridge Replacement – Km 47.3,Deck & Surfacing,1040000.0,1085531.0,45531.0,4.38,96.6,2023-08-01,2024-11-30,Low
+PRJ-005,Bridge Replacement – Km 47.3,Project Management,416000.0,464640.0,48640.0,11.69,86.3,2023-08-01,2024-11-30,High
