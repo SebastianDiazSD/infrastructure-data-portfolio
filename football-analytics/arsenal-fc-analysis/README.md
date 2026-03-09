@@ -1,5 +1,7 @@
 # ⚽ Arsenal FC Performance Analysis (2010–2021)
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://jahv3i5bsqmagxvzs9tvwb.streamlit.app/)
+
 A complete data analysis and machine learning project focused on understanding  
 **why Arsenal FC has not won the Premier League since 2003/04**.
 
