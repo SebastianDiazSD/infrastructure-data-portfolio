@@ -30,7 +30,7 @@ The goal: **turn raw project data into decisions**.
 | [Arsenal FC Performance Analysis](./football-analytics/arsenal-fc-analysis) | Interactive Streamlit dashboard analysing Arsenal's season performance: goals, xG, pass accuracy, defensive metrics. Scrapes live StatsBomb data. | Streamlit, Pandas, Plotly, StatsBomb API | ✅ Live |
 
 > **Screenshot:**  
-> ![Arsenal Dashboard](./docs/screenshots/arsenal-dashboard.png)
+> ![Arsenal Dashboard](./football-analytics/arsenal-fc-analysis/docs/screenshots/arsenal-dashboard.png)
 
 ---
 
