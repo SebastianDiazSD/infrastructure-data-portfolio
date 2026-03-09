@@ -91,9 +91,6 @@ infrastructure-data-portfolio/
 
 ## 🤝 Collaboration & Consulting
 
-Available for consulting on:
-- Data tooling for infrastructure and construction projects
-- Python automation of project reporting workflows
-- Dashboard development for site and programme teams
+Interested in the intersection of infrastructure project management and data tooling. Open to conversations about research, collaboration, and future opportunities.
 
 📬 [LinkedIn — Sebastian Arce Diaz](https://www.linkedin.com/in/sebastian-arce-diaz91/)
