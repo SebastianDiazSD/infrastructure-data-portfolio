@@ -27,7 +27,7 @@ The goal: **turn raw project data into decisions**.
 
 | Project | Description | Tech | Status |
 |---------|-------------|------|--------|
-| [Arsenal FC Performance Analysis](./football-analytics/arsenal-fc-analysis) | Interactive Streamlit dashboard analysing Arsenal's season performance: goals, xG, pass accuracy, defensive metrics. Scrapes live StatsBomb data. | Streamlit, Pandas, Plotly, StatsBomb API | ✅ Live |
+| [Arsenal FC Performance Analysis](./football-analytics/arsenal-fc-analysis) | Interactive Streamlit dashboard analysing Arsenal's season performance: goals, xG, pass accuracy, defensive metrics. Scrapes live StatsBomb data. | Streamlit, Pandas, Plotly, StatsBomb API | [✅ Live](https://jahv3i5bsqmagxvzs9tvwb.streamlit.app/)|
 
 > **Screenshot:**  
 > ![Arsenal Dashboard](./football-analytics/arsenal-fc-analysis/docs/screenshots/arsenal-dashboard.png)
@@ -38,7 +38,7 @@ The goal: **turn raw project data into decisions**.
 
 | Project | Description | Tech | Status |
 |---------|-------------|------|--------|
-| Cost Deviation Tracker | Visualises planned vs actual costs across project phases. Flags deviation thresholds and produces PDF summary reports. | Pandas, Plotly, ReportLab | 🚧 In progress |
+| Cost Deviation Tracker | Visualises planned vs actual costs across project phases. Flags deviation thresholds and produces PDF summary reports. | Pandas, Plotly, ReportLab | [✅ Live](https://tptuprkmq25qgjmvrbjftw.streamlit.app/) |
 | Schedule Risk Dashboard | Monte Carlo simulation on activity durations to estimate P50/P80 completion dates. | NumPy, Plotly | 📋 Planned |
 | Progress S-Curve Generator | Generates earned-value S-curves from raw progress data exports. | Pandas, Matplotlib | 📋 Planned |
 
