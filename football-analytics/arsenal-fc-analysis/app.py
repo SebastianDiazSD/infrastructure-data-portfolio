@@ -19,6 +19,10 @@ Author: Sebastian Arce Diaz
 # ======================================================
 import streamlit as st
 import pandas as pd
+import os
+
+# Always resolve paths relative to this file, not the working directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 from src.preprocessing import (
     clean_data,
@@ -83,7 +87,7 @@ def load_data() -> pd.DataFrame:
     """
     Load and preprocess the Premier League dataset.
     """
-    df = pd.read_csv("data/df_full_premierleague.csv")
+    df = pd.read_csv(os.path.join(BASE_DIR, "data", "df_full_premierleague.csv"))
     df = clean_data(df)
     df = add_match_outcome_features(df)
     return df
