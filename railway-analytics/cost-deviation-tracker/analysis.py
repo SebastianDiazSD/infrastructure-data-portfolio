@@ -4,7 +4,11 @@ Pure dta analysis functions
 All  dashboard logic calls these so te code stays testable and clean
 """
 
+import os
 import pandas as pd
+
+# Always resolve paths relative to this file, not the working directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_data(path: str = None):
     if path is None:
