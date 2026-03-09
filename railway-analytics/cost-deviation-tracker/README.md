@@ -1,5 +1,7 @@
 # 🚆 Railway Project Cost Deviation Tracker
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://tptuprkmq25qgjmvrbjftw.streamlit.app/)
+
 An interactive Streamlit dashboard for monitoring cost performance across a portfolio of railway infrastructure projects — tracking budget vs actual spend, deviation analysis, work package breakdowns, and risk flags.
 
 > Built by a civil engineer who spent 5 years watching cost reports arrive too late to act on them.
