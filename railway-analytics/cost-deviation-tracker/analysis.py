@@ -6,8 +6,10 @@ All  dashboard logic calls these so te code stays testable and clean
 
 import pandas as pd
 
-def load_data(path:str="data/project_costs.csv"):
-    df= pd.read_csv(path)
+def load_data(path: str = None):
+    if path is None:
+        path = os.path.join(BASE_DIR, "data", "project_costs.csv")
+    df = pd.read_csv(path)
     df["start_date"] = pd.to_datetime(df["start_date"])
     df["end_date"] = pd.to_datetime(df["end_date"])
     return df
