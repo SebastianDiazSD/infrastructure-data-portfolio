@@ -8,7 +8,7 @@ An interactive Streamlit dashboard for monitoring cost performance across a port
 
 ## 📸 Dashboard Preview
 
-![Dashboard Overview](cost-deviation-tracker/docs/screenshots/cost-tracker-overview.png)
+![Dashboard Overview](docs/screenshots/cost-tracker-overview.png)
 
 ---
 
