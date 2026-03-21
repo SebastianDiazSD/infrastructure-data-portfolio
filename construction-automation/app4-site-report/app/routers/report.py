@@ -14,6 +14,8 @@ async def generate_report(request: ReportRequest):
     Accepts structured site inspection data,
     generates a Bautagesbericht via Claude, returns a .docx file.
     """
+    if not request.work_summary.strip():
+        raise HTTPException(422,detail="work_summary is required")
     try:
         report_text = await generate_report_text(request)
         docx_bytes  = build_docx(request, report_text)
@@ -27,7 +29,9 @@ async def generate_report(request: ReportRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("api/generate-report/test")
+@router.post("/generate-report/test")
 async def generate_report_test(request: ReportRequest):
-    docx_bytes = await generate_report_text(request)
-    return StreamingResponse()
+    if not request.work_summary.strip():
+        raise HTTPException(status_code=422, detail="work_summary darf nicht leer sein")
+    report_test=await generate_report_text(request)
+    return {'report':report_test}

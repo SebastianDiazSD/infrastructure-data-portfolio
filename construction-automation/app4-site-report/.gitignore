@@ -18,3 +18,7 @@ dab_output.json
 .idea/
 .vscode/
 *.swp
+
+app/services/prompts.py
+payload.json
+test_report.docx

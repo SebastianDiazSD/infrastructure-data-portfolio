@@ -1,0 +1,98 @@
+### Test: Claude geneartes report (JSON response)
+POST http://localhost:8000/api/generate-report/test
+Content-Type: application/json
+
+{
+  "project_id": "NUE-2026-01",
+  "project_name": "Generalsanierung Nürnberg-Regensburg",
+  "date": "2026-03-21",
+  "supervisor": "Sebastian Arce Diaz",
+  "weather": "sonnig",
+  "temp_celsius": 12.0,
+  "work_summary": "Gleis 1 Deining-Neumarkt, Erneuerung von Schewellen und Schienen km 61,4 bis 63,2",
+  "workforce": [{"company": "Spitzke","trade": "Oberbau","headcount": 8}],
+  "equipment": [{"description": "Umbauzug","quantity": 1},{"description": "Arbeitszug","quantity": 1}],
+  "issues": null,
+  "next_steps": "Erneuerung von Schewellen und Schienen km 63,2 bis 64,0"
+}
+
+### Test empty work_summary-> Expect HTTP 422
+POST http://localhost:8000/api/generate-report/test
+Content-Type: application/json
+
+{
+  "project_id": "TEST","project_name": "Test","date": "2026-03-21",
+  "supervisor": "Test","weather": "sonnig","work_summary": ""
+}
+
+### Test: Regen+minus temp
+POST http://localhost:8000/api/generate-report/test
+Content-Type: application/json
+
+{
+  "project_id": "NUE-2026-01",
+  "project_name": "Generalsanierung Nürnberg-Regensburg",
+  "date": "2026-03-21",
+  "supervisor": "Sebastian Arce Diaz",
+  "weather": "Regen",
+  "temp_celsius": -2.0,
+  "work_summary": "Schotterbett konnte wegen der Witerung nicht erneuert werden.",
+  "workforce": [],
+  "equipment": [],
+  "issues": null,
+  "next_steps": "Dokumentation und Weiterleitung an PL"
+}
+
+
+
+
+### Test: Language EN
+
+POST http://localhost:8000/api/generate-report/test
+Content-Type: application/json
+
+{
+  "project_id": "NUE-2026-01",
+  "project_name": "Generalsanierung Nürnberg-Regensburg",
+  "date": "2026-03-21",
+  "supervisor": "Sebastian Arce Diaz",
+  "weather": "sonnig",
+  "temp_celsius": 12.0,
+  "work_summary": "Schwellentausch km 61.4 bis 63.2 abgeschlossen.",
+  "workforce": [
+    {
+      "company": "Spitzke",
+      "trade": "Gleisbau",
+      "headcount": 8
+    }
+  ],
+  "equipment": [],
+  "issues": null,
+  "next_steps": null,
+  "report_language": "en"
+}
+
+### Test download .docx
+POST http://localhost:8000/api/generate-report
+Content-Type: application/json
+
+{
+  "project_id": "NUE-2026-01",
+  "project_name": "Generalsanierung Nürnberg-Regensburg",
+  "date": "2026-03-21",
+  "supervisor": "Sebastian Arce Diaz",
+  "weather": "sonnig",
+  "temp_celsius": 12.0,
+  "work_summary": "Schwellentausch km 61.4 bis 63.2 abgeschlossen.",
+  "workforce": [
+    {
+      "company": "Spitzke",
+      "trade": "Gleisbau",
+      "headcount": 8
+    }
+  ],
+  "equipment": [{"description": "Umbauzug","quantity": 1},{"description": "Arbeitszug","quantity": 1}],
+  "issues": null,
+  "next_steps": null,
+  "report_language": "de"
+}
