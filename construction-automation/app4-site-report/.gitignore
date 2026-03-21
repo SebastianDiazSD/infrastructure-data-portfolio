@@ -1,0 +1,20 @@
+# Environment & secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Generated files
+*.docx
+dab_output.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
