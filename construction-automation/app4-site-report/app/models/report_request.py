@@ -29,6 +29,11 @@ class ReportRequest(BaseModel):
     date:         str = Field(..., description="Date in ISO format YYYY-MM-DD")
     supervisor:   str = Field(..., description="Site supervisor / Bauüberwacher")
 
+    #Shift duration
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+
     # Site conditions
     weather:      WeatherCondition = Field(..., description="Weather condition")
     temp_celsius: Optional[float]  = Field(None, description="Temperature in °C")

@@ -1,291 +1,466 @@
-import { useState } from "react";
+import { useState } from 'react'
+import {
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  DatePicker,
+  Button,
+  Card,
+  Typography,
+  Space,
+  Table,
+  Divider,
+  Alert,
+  Spin,
+  Badge,
+  Row,
+  Col,
+  Tag,
+} from 'antd'
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  FileWordOutlined,
+  LoadingOutlined,
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
 
-const API_URL = "http://localhost:8000/api/generate-report";
+const { Title, Text } = Typography
+const { TextArea } = Input
+const { Option } = Select
 
-const WEATHER_OPTIONS = [
-  { value: "sonnig",   label: "☀️ Sonnig" },
-  { value: "bewölkt",  label: "⛅ Bewölkt" },
-  { value: "Regen",    label: "🌧️ Regen" },
-  { value: "Schnee",   label: "❄️ Schnee" },
-  { value: "Wind",     label: "💨 Wind" },
-];
-
-const LANGUAGE_OPTIONS = [
-  { value: "de", label: "🇩🇪 Deutsch" },
-  { value: "en", label: "🇬🇧 English" },
-  { value: "es", label: "🇪🇸 Español" },
-];
+const API_BASE = 'http://localhost:8000/api'
 
 export default function ProjectForm() {
-  const [formData, setFormData] = useState({
-    project_id:      "",
-    project_name:    "",
-    date:            new Date().toISOString().split("T")[0],
-    supervisor:      "",
-    weather:         "sonnig",
-    temp_celsius:    "",
-    work_summary:    "",
-    issues:          "",
-    next_steps:      "",
-    report_language: "de",
-    workforce:       [{ company: "", trade: "", headcount: 1 }],
-    equipment:       [{ description: "", quantity: 1 }],
-  });
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(false)
 
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const [workforce, setWorkforce] = useState([
+    { key: 0, company: '', trade: '', headcount: 1 },
+  ])
+  const [equipment, setEquipment] = useState([
+    { key: 0, description: '', quantity: 1 },
+  ])
 
-  // ── Generic field update ───────────────────────────────────────
-  const update = (field, value) =>
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  // ── Workforce helpers ──────────────────────────────────────────
+  const addWorker = () =>
+    setWorkforce((prev) => [
+      ...prev,
+      { key: Date.now(), company: '', trade: '', headcount: 1 },
+    ])
 
-  // ── Workforce handlers ─────────────────────────────────────────
-  const updateWorkforce = (index, field, value) => {
-    const updated = [...formData.workforce];
-    updated[index] = { ...updated[index], [field]: value };
-    update("workforce", updated);
-  };
-  const addWorkforce    = () => update("workforce",
-    [...formData.workforce, { company: "", trade: "", headcount: 1 }]);
-  const removeWorkforce = (i) => update("workforce",
-    formData.workforce.filter((_, idx) => idx !== i));
+  const removeWorker = (key) =>
+    setWorkforce((prev) => prev.filter((r) => r.key !== key))
 
-  // ── Equipment handlers ─────────────────────────────────────────
-  const updateEquipment = (index, field, value) => {
-    const updated = [...formData.equipment];
-    updated[index] = { ...updated[index], [field]: value };
-    update("equipment", updated);
-  };
-  const addEquipment    = () => update("equipment",
-    [...formData.equipment, { description: "", quantity: 1 }]);
-  const removeEquipment = (i) => update("equipment",
-    formData.equipment.filter((_, idx) => idx !== i));
+  const updateWorker = (key, field, value) =>
+    setWorkforce((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, [field]: value } : r))
+    )
+
+  // ── Equipment helpers ──────────────────────────────────────────
+  const addEquipment = () =>
+    setEquipment((prev) => [
+      ...prev,
+      { key: Date.now(), description: '', quantity: 1 },
+    ])
+
+  const removeEquipment = (key) =>
+    setEquipment((prev) => prev.filter((r) => r.key !== key))
+
+  const updateEquipment = (key, field, value) =>
+    setEquipment((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, [field]: value } : r))
+    )
 
   // ── Submit ─────────────────────────────────────────────────────
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  const handleSubmit = async (values) => {
+    setLoading(true)
+    setError(null)
+    setSuccess(false)
 
-    // Clean up empty workforce/equipment rows
     const payload = {
-      ...formData,
-      temp_celsius: formData.temp_celsius !== "" ? parseFloat(formData.temp_celsius) : null,
-      issues:       formData.issues.trim()    || null,
-      next_steps:   formData.next_steps.trim() || null,
-      workforce:    formData.workforce.filter(w => w.company.trim()),
-      equipment:    formData.equipment.filter(e => e.description.trim()),
-    };
+      project_id: values.project_id,
+      project_name: values.project_name,
+      date: values.date ? values.date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+      supervisor: values.supervisor,
+      weather: values.weather,
+      temp_celsius: values.temp_celsius,
+      work_summary: values.work_summary,
+      issues: values.issues || null,
+      next_steps: values.next_steps || null,
+      report_language: values.report_language,
+      workforce: workforce.filter((r) => r.company && r.trade),
+      equipment: equipment.filter((r) => r.description),
+    }
 
     try {
-      const response = await fetch(API_URL, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
-      });
+      const response = await fetch(`${API_BASE}/generate-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || "Server error");
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || `HTTP ${response.status}`)
       }
 
-      const blob = await response.blob();
-      const url  = window.URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `Bautagesbericht_${formData.project_id}_${formData.date}.docx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Bautagesbericht_${payload.project_id}_${payload.date}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+      setSuccess(true)
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Unknown error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  // ── Render ─────────────────────────────────────────────────────
+  // ── Workforce table columns ────────────────────────────────────
+  const workerColumns = [
+    {
+      title: 'Company',
+      dataIndex: 'company',
+      render: (_, record) => (
+        <Input
+          placeholder="e.g. Spitzke"
+          value={record.company}
+          onChange={(e) => updateWorker(record.key, 'company', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Trade',
+      dataIndex: 'trade',
+      render: (_, record) => (
+        <Input
+          placeholder="e.g. Gleisbau"
+          value={record.trade}
+          onChange={(e) => updateWorker(record.key, 'trade', e.target.value)}
+        />
+      ),
+    },
+    {
+      title: 'Count',
+      dataIndex: 'headcount',
+      width: 100,
+      render: (_, record) => (
+        <InputNumber
+          min={1}
+          value={record.headcount}
+          onChange={(v) => updateWorker(record.key, 'headcount', v)}
+          style={{ width: '100%' }}
+        />
+      ),
+    },
+    {
+      title: '',
+      width: 48,
+      render: (_, record) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => removeWorker(record.key)}
+          disabled={workforce.length === 1}
+        />
+      ),
+    },
+  ]
+
+  // ── Equipment table columns ────────────────────────────────────
+  const equipmentColumns = [
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      render: (_, record) => (
+        <Input
+          placeholder="e.g. Umbauzug"
+          value={record.description}
+          onChange={(e) =>
+            updateEquipment(record.key, 'description', e.target.value)
+          }
+        />
+      ),
+    },
+    {
+      title: 'Qty',
+      dataIndex: 'quantity',
+      width: 100,
+      render: (_, record) => (
+        <InputNumber
+          min={1}
+          value={record.quantity}
+          onChange={(v) => updateEquipment(record.key, 'quantity', v)}
+          style={{ width: '100%' }}
+        />
+      ),
+    },
+    {
+      title: '',
+      width: 48,
+      render: (_, record) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => removeEquipment(record.key)}
+          disabled={equipment.length === 1}
+        />
+      ),
+    },
+  ]
+
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: 24, fontFamily: "Arial, sans-serif" }}>
-      <h1 style={{ color: "#2E5FA3", borderBottom: "3px solid #2E5FA3", paddingBottom: 8 }}>
-        Ground2Tech — Site Inspection Report
-      </h1>
-
-      <form onSubmit={handleSubmit}>
-
-        {/* Project Info */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Project Information</h2>
-          <div style={rowStyle}>
-            <label style={labelStyle}>Project ID *</label>
-            <input style={inputStyle} required value={formData.project_id}
-              onChange={e => update("project_id", e.target.value)} />
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 16px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <Space align="center" size={12}>
+          <FileWordOutlined style={{ fontSize: 28, color: '#0d6efd' }} />
+          <div>
+            <Title level={3} style={{ margin: 0 }}>
+              Site Report Generator
+            </Title>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Ground2Tech Engineering · Bautagesbericht
+            </Text>
           </div>
-          <div style={rowStyle}>
-            <label style={labelStyle}>Project Name *</label>
-            <input style={inputStyle} required value={formData.project_name}
-              onChange={e => update("project_name", e.target.value)} />
-          </div>
-          <div style={rowStyle}>
-            <label style={labelStyle}>Date *</label>
-            <input style={inputStyle} type="date" required value={formData.date}
-              onChange={e => update("date", e.target.value)} />
-          </div>
-          <div style={rowStyle}>
-            <label style={labelStyle}>Bauüberwacher *</label>
-            <input style={inputStyle} required value={formData.supervisor}
-              onChange={e => update("supervisor", e.target.value)} />
-          </div>
-        </section>
+        </Space>
+      </div>
 
-        {/* Site Conditions */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Site Conditions</h2>
-          <div style={rowStyle}>
-            <label style={labelStyle}>Weather *</label>
-            <select style={inputStyle} value={formData.weather}
-              onChange={e => update("weather", e.target.value)}>
-              {WEATHER_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div style={rowStyle}>
-            <label style={labelStyle}>Temperature (°C)</label>
-            <input style={inputStyle} type="number" step="0.1"
-              value={formData.temp_celsius}
-              onChange={e => update("temp_celsius", e.target.value)} />
-          </div>
-        </section>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleSubmit}
+        initialValues={{
+          report_language: 'de',
+          date: dayjs(),
+          temp_celsius: 15,
+        }}
+        requiredMark={false}
+      >
+        {/* ── Project Info ── */}
+        <Card
+          size="small"
+          title={<Text strong>Project Information</Text>}
+          style={{ marginBottom: 16 }}
+        >
+          <Row gutter={16}>
+            <Col xs={24} sm={8}>
+              <Form.Item
+                name="project_id"
+                label="Project ID"
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="NUE-2026-01" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={16}>
+              <Form.Item
+                name="project_name"
+                label="Project Name"
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="Generalsanierung Nürnberg-Regensburg" />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        {/* Work Summary */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Work Performed *</h2>
-          <textarea style={{ ...inputStyle, height: 100, resize: "vertical" }}
-            required value={formData.work_summary}
-            onChange={e => update("work_summary", e.target.value)}
-            placeholder="Describe work performed today..." />
-        </section>
+          <Row gutter={16}>
+            <Col xs={24} sm={8}>
+              <Form.Item
+                name="date"
+                label="Date"
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={10}>
+              <Form.Item
+                name="supervisor"
+                label="Supervisor"
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="Sebastian Arce Diaz" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={6}>
+              <Form.Item name="report_language" label="Language">
+                <Select>
+                  <Option value="de">
+                    <Tag color="blue">DE</Tag> Deutsch
+                  </Option>
+                  <Option value="en">
+                    <Tag color="cyan">EN</Tag> English
+                  </Option>
+                  <Option value="es">
+                    <Tag color="green">ES</Tag> Español
+                  </Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Card>
 
-        {/* Workforce */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Workforce</h2>
-          {formData.workforce.map((w, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <input style={{ ...inputStyle, flex: 2 }} placeholder="Company"
-                value={w.company} onChange={e => updateWorkforce(i, "company", e.target.value)} />
-              <input style={{ ...inputStyle, flex: 2 }} placeholder="Trade / Gewerk"
-                value={w.trade} onChange={e => updateWorkforce(i, "trade", e.target.value)} />
-              <input style={{ ...inputStyle, flex: 1, width: 60 }} type="number" min="0"
-                placeholder="Count" value={w.headcount}
-                onChange={e => updateWorkforce(i, "headcount", parseInt(e.target.value))} />
-              {formData.workforce.length > 1 &&
-                <button type="button" onClick={() => removeWorkforce(i)}
-                  style={removeBtnStyle}>✕</button>}
-            </div>
-          ))}
-          <button type="button" onClick={addWorkforce} style={addBtnStyle}>
-            + Add Row
-          </button>
-        </section>
+        {/* ── Conditions ── */}
+        <Card
+          size="small"
+          title={<Text strong>Site Conditions</Text>}
+          style={{ marginBottom: 16 }}
+        >
+          <Row gutter={16}>
+            <Col xs={24} sm={16}>
+              <Form.Item
+                name="weather"
+                label="Weather"
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="sonnig / cloudy / rainy" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name="temp_celsius" label="Temperature (°C)">
+                <InputNumber
+                  style={{ width: '100%' }}
+                  min={-30}
+                  max={50}
+                  addonAfter="°C"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Card>
 
-        {/* Equipment */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Equipment / Geräte</h2>
-          {formData.equipment.map((eq, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <input style={{ ...inputStyle, flex: 3 }} placeholder="Equipment description"
-                value={eq.description}
-                onChange={e => updateEquipment(i, "description", e.target.value)} />
-              <input style={{ ...inputStyle, flex: 1, width: 60 }} type="number" min="1"
-                placeholder="Qty" value={eq.quantity}
-                onChange={e => updateEquipment(i, "quantity", parseInt(e.target.value))} />
-              {formData.equipment.length > 1 &&
-                <button type="button" onClick={() => removeEquipment(i)}
-                  style={removeBtnStyle}>✕</button>}
-            </div>
-          ))}
-          <button type="button" onClick={addEquipment} style={addBtnStyle}>
-            + Add Row
-          </button>
-        </section>
+        {/* ── Work Summary ── */}
+        <Card
+          size="small"
+          title={<Text strong>Work Summary</Text>}
+          style={{ marginBottom: 16 }}
+        >
+          <Form.Item
+            name="work_summary"
+            rules={[{ required: true, message: 'Work summary is required' }]}
+          >
+            <TextArea
+              rows={4}
+              placeholder="Describe the work performed today..."
+              showCount
+              maxLength={2000}
+            />
+          </Form.Item>
 
-        {/* Issues & Next Steps */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Issues / Störungen</h2>
-          <textarea style={{ ...inputStyle, height: 70, resize: "vertical" }}
-            value={formData.issues}
-            onChange={e => update("issues", e.target.value)}
-            placeholder="Any problems, delays or incidents? (leave blank if none)" />
-        </section>
+          <Form.Item name="issues" label="Issues / Delays">
+            <TextArea rows={2} placeholder="Any blockers, safety events, or delays (optional)" />
+          </Form.Item>
 
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Next Day Plan</h2>
-          <textarea style={{ ...inputStyle, height: 70, resize: "vertical" }}
-            value={formData.next_steps}
-            onChange={e => update("next_steps", e.target.value)}
-            placeholder="Planned work for tomorrow..." />
-        </section>
+          <Form.Item name="next_steps" label="Next Steps">
+            <TextArea rows={2} placeholder="Planned work for tomorrow (optional)" />
+          </Form.Item>
+        </Card>
 
-        {/* Language */}
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>Report Language</h2>
-          <div style={{ display: "flex", gap: 12 }}>
-            {LANGUAGE_OPTIONS.map(o => (
-              <label key={o.value} style={{ cursor: "pointer", fontSize: 16 }}>
-                <input type="radio" name="lang" value={o.value}
-                  checked={formData.report_language === o.value}
-                  onChange={() => update("report_language", o.value)}
-                  style={{ marginRight: 6 }} />
-                {o.label}
-              </label>
-            ))}
-          </div>
-        </section>
+        {/* ── Workforce ── */}
+        <Card
+          size="small"
+          title={
+            <Space>
+              <Text strong>Workforce</Text>
+              <Badge
+                count={workforce.reduce((s, r) => s + (r.headcount || 0), 0)}
+                style={{ backgroundColor: '#0d6efd' }}
+                overflowCount={999}
+                showZero
+              />
+            </Space>
+          }
+          extra={
+            <Button
+              type="dashed"
+              icon={<PlusOutlined />}
+              size="small"
+              onClick={addWorker}
+            >
+              Add row
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        >
+          <Table
+            columns={workerColumns}
+            dataSource={workforce}
+            rowKey="key"
+            pagination={false}
+            size="small"
+          />
+        </Card>
 
-        {/* Error */}
+        {/* ── Equipment ── */}
+        <Card
+          size="small"
+          title={<Text strong>Equipment</Text>}
+          extra={
+            <Button
+              type="dashed"
+              icon={<PlusOutlined />}
+              size="small"
+              onClick={addEquipment}
+            >
+              Add row
+            </Button>
+          }
+          style={{ marginBottom: 24 }}
+        >
+          <Table
+            columns={equipmentColumns}
+            dataSource={equipment}
+            rowKey="key"
+            pagination={false}
+            size="small"
+          />
+        </Card>
+
+        {/* ── Feedback ── */}
         {error && (
-          <div style={{ background: "#FFE5E5", border: "1px solid #CC0000",
-            padding: 12, borderRadius: 4, marginBottom: 16, color: "#CC0000" }}>
-            ⚠️ {error}
-          </div>
+          <Alert
+            type="error"
+            message="Generation failed"
+            description={error}
+            showIcon
+            closable
+            onClose={() => setError(null)}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        {success && (
+          <Alert
+            type="success"
+            message="Report downloaded successfully"
+            showIcon
+            closable
+            onClose={() => setSuccess(false)}
+            style={{ marginBottom: 16 }}
+          />
         )}
 
-        {/* Submit */}
-        <button type="submit" disabled={loading} style={{
-          background: loading ? "#888" : "#2E5FA3",
-          color: "white", border: "none", padding: "14px 32px",
-          fontSize: 16, borderRadius: 6, cursor: loading ? "not-allowed" : "pointer",
-          width: "100%", marginTop: 8,
-        }}>
-          {loading ? "⏳ Generating report..." : "📄 Generate Bautagesbericht"}
-        </button>
-
-      </form>
+        {/* ── Submit ── */}
+        <Button
+          type="primary"
+          htmlType="submit"
+          size="large"
+          block
+          loading={loading}
+          icon={loading ? <LoadingOutlined /> : <FileWordOutlined />}
+        >
+          {loading ? 'Generating report…' : 'Generate Bautagesbericht (.docx)'}
+        </Button>
+      </Form>
     </div>
-  );
+  )
 }
-
-// ── Styles ─────────────────────────────────────────────────────────
-const sectionStyle = {
-  background: "#F8F9FA", border: "1px solid #DEE2E6",
-  borderRadius: 6, padding: 16, marginBottom: 16,
-};
-const headingStyle = {
-  color: "#2E5FA3", fontSize: 15, fontWeight: "bold",
-  marginTop: 0, marginBottom: 12,
-};
-const rowStyle   = { display: "flex", alignItems: "center", marginBottom: 10 };
-const labelStyle = { width: 160, fontWeight: "bold", fontSize: 14, flexShrink: 0 };
-const inputStyle = {
-  flex: 1, padding: "6px 10px", border: "1px solid #CCC",
-  borderRadius: 4, fontSize: 14,
-};
-const addBtnStyle = {
-  background: "white", border: "1px solid #2E5FA3", color: "#2E5FA3",
-  padding: "4px 12px", borderRadius: 4, cursor: "pointer", fontSize: 13,
-};
-const removeBtnStyle = {
-  background: "white", border: "1px solid #CC0000", color: "#CC0000",
-  padding: "4px 8px", borderRadius: 4, cursor: "pointer",
-};

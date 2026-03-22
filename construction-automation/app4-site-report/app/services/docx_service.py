@@ -19,6 +19,13 @@ def set_cell_bg(cell, hex_color: str):
     shd.set(qn('w:val'), 'clear')
     tcPr.append(shd)
 
+def set_title_bg(title, hex_color: str):
+    """Set table cell background colour."""
+    pPr = title._p.get_or_add_pPr()
+    shd = OxmlElement('w:shd')
+    shd.set(qn('w:fill'), hex_color)
+    shd.set(qn('w:val'), 'clear')
+    pPr.append(shd)
 
 def add_section_heading(doc, text: str):
     """Add a G2T blue heading."""
@@ -42,14 +49,17 @@ def build_docx(request: ReportRequest, report_text: str) -> bytes:
     title = doc.add_heading("BAUTAGESBERICHT", 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if title.runs:
-        title.runs[0].font.color.rgb = G2T_BLUE
+        set_title_bg(title, '2E5FA3')
+        title.runs[0].font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)  # white text
+        title.runs[0].font.size = Pt(20)
 
     # ── Header info table (2-column) ──────────────────────────────
-    info_table = doc.add_table(rows=4, cols=2)
+    info_table = doc.add_table(rows=5, cols=2)
     info_table.style = "Table Grid"
     info_data = [
         ("Projekt",       f"{request.project_name} ({request.project_id})"),
         ("Datum",         request.date),
+        ("Arbeitszeit",f"{request.start_time or '--:--'} – {request.end_time or '--:--'}"),
         ("Bauüberwacher", request.supervisor),
         ("Wetter",        f"{request.weather.value}" +
                           (f", {request.temp_celsius}°C" if request.temp_celsius else "")),
