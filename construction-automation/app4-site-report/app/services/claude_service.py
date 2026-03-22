@@ -3,7 +3,12 @@ import os
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from app.models.report_request import ReportRequest
-from app.services.prompts import SYSTEM_PROMPT, build_prompt
+
+# Fallback import
+try:
+    from app.services.prompts import SYSTEM_PROMPT, build_prompt
+except ImportError:
+    from app.services.prompts_template import SYSTEM_PROMPT, build_prompt
 
 load_dotenv()
 
