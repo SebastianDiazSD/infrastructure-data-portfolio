@@ -1,0 +1,14 @@
+{
+  "project_id": "NUE-2026-01",
+  "project_name": "Generalsanierung Nürnberg-Regensburg",
+  "date": "2026-03-21",
+  "supervisor": "Sebastian Arce Diaz",
+  "weather": "sonnig",
+  "temp_celsius": 12.0,
+  "work_summary": "Schwellentausch km 61.4 bis 63.2 abgeschlossen. Schotterbett erneuert.",
+  "workforce": [{"company": "Spitzke", "trade": "Gleisbau", "headcount": 8}],
+  "equipment": [{"description": "Umbauzug", "quantity": 1}, {"description": "Arbeitszug", "quantity": 1}],
+  "issues": null,
+  "next_steps": "Erneuerung km 63.2 bis 64.8",
+  "report_language": "de"
+}

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import report,voice
+from app.routers import report, voice, parse
 
 app = FastAPI(
     title="Ground2Tech Site Inspection Report Generator",
@@ -16,12 +16,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Report production
+# Report generation
 app.include_router(report.router, prefix="/api")
 
-# Voice input
+# Voice transcription (Whisper)
 app.include_router(voice.router, prefix="/api")
+
+# Mode B: free-text / voice → structured parse
+app.include_router(parse.router, prefix="/api")
 
 
 @app.get("/health")

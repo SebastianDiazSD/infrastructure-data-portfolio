@@ -22,3 +22,4 @@ dab_output.json
 app/services/prompts.py
 payload.json
 test_report.docx
+node_modules/
