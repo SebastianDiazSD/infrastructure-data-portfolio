@@ -1,0 +1,12 @@
+path: /home/sebastian/Documents/Ground2Tech-Engineering/infrastructure-data-portfolio/construction-automation/app1-track-inspection/data/splits
+train: train/images
+val:   val/images
+test:  test/images
+
+nc: 5
+names:
+  - broken_rail
+  - corner_breakout
+  - spalling_body
+  - spalling_rail_seat
+  - surface_crack

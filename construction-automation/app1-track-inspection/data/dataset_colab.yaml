@@ -1,0 +1,15 @@
+# dataset_colab.yaml
+# For use in Google Colab with Drive mounted at /content/drive/MyDrive/
+
+path: /content/drive/MyDrive/Ground2Tech/App1/data/splits
+train: train/images
+val:   val/images
+test:  test/images
+
+nc: 5
+names:
+  - broken_rail
+  - corner_breakout
+  - spalling_body
+  - spalling_rail_seat
+  - surface_crack
