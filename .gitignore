@@ -1,0 +1,11 @@
+
+# IDE
+.idea/
+
+# Training artifacts
+runs/
+*.pt
+*.onnx
+
+# Misc
+"LABEL STUDIO LOCAL FILES.txt"
