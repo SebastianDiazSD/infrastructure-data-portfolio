@@ -9,3 +9,8 @@ runs/
 
 # Misc
 "LABEL STUDIO LOCAL FILES.txt"
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
