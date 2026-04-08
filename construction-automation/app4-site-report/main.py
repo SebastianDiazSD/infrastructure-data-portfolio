@@ -3,13 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.routers import report, voice, parse
+from contextlib import asynccontextmanager
+from app.database import connect_to_mongo,close_mongo_connection
+from app.routers.auth import router as auth_router
 import os
 
-app = FastAPI(
-    title="Ground2Tech Site Inspection Report Generator",
-    description="Generates Bautagesbericht reports from voice/text input using Claude AI",
-    version="0.1.0",
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_to_mongo()
+    yield
+    await close_mongo_connection()
+
+app=FastAPI(title="G2T Site Reporter API",lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +32,9 @@ app.include_router(voice.router, prefix="/api")
 
 # Mode B: free-text / voice → structured parse
 app.include_router(parse.router, prefix="/api")
+
+# User authentication
+app.include_router(auth_router)
 
 
 @app.get("/health")
