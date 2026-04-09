@@ -302,6 +302,7 @@ export default function ProjectForm() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [validationError, setValidationError] = useState(null);
+  const [dateConfirm, setDateConfirm] = useState(null);
 
   const totalPersonnel = workforce.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
   const bgMeldung = hasBgMeldung(besonderheiten);
@@ -339,7 +340,19 @@ export default function ProjectForm() {
     Object.entries(recoveryValues).forEach(([k, v]) => { if (v) m[k] = v; });
     if (m.project_id)   setProjectId(m.project_id);
     if (m.project_name) setProjectName(m.project_name);
-    if (m.date)         setReportDate(dayjs(m.date));
+    if (m.date) {
+  const lower = m.date.toLowerCase().trim();
+  const todayKeywords = ['heute', 'today', 'hoy', 'jetzt', 'now', 'ahora'];
+  const yesterdayKeywords = ['gestern', 'yesterday', 'ayer'];
+  if (todayKeywords.includes(lower)) {
+    setDateConfirm({ resolved: dayjs(), keyword: m.date });
+  } else if (yesterdayKeywords.includes(lower)) {
+    setDateConfirm({ resolved: dayjs().subtract(1, 'day'), keyword: m.date });
+  } else {
+    const parsed = dayjs(m.date);
+    if (parsed.isValid()) setReportDate(parsed);
+  }
+}
     if (m.supervisor)   setSupervisor(m.supervisor);
     if (m.start_time)   setStartTime(m.start_time);
     if (m.end_time)     setEndTime(m.end_time);
@@ -400,13 +413,52 @@ export default function ProjectForm() {
       const res = await fetch("/api/parse-input", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ raw_text: modeBText, language: reportLang }) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { parsed, missing_required } = await res.json();
-      if (missing_required.length === 0) {
+
+// ── Date keyword interception ──────────────────────────────────────
+const todayKeywords = ['heute', 'today', 'hoy', 'jetzt', 'now', 'ahora'];
+const yesterdayKeywords = ['gestern', 'yesterday', 'ayer'];
+
+let resolvedDateConfirm = null;
+let cleanedMissing = [...missing_required];
+
+if (parsed.date) {
+  const lower = parsed.date.toLowerCase().trim();
+  if (todayKeywords.includes(lower)) {
+    resolvedDateConfirm = { resolved: dayjs(), keyword: parsed.date };
+    // Remove 'date' from missing — we handle it via modal
+    cleanedMissing = cleanedMissing.filter(f => f !== 'date');
+    parsed.date = dayjs().format('YYYY-MM-DD'); // inject resolved value
+  } else if (yesterdayKeywords.includes(lower)) {
+    resolvedDateConfirm = { resolved: dayjs().subtract(1, 'day'), keyword: parsed.date };
+    cleanedMissing = cleanedMissing.filter(f => f !== 'date');
+    parsed.date = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+  }
+} else if (missing_required.includes('date')) {
+  // Backend couldn't find date at all — check raw text for keywords
+  const rawLower = (modeBText || '').toLowerCase();
+  const foundToday = todayKeywords.find(kw => rawLower.includes(kw));
+  const foundYesterday = yesterdayKeywords.find(kw => rawLower.includes(kw));
+  if (foundToday) {
+    resolvedDateConfirm = { resolved: dayjs(), keyword: foundToday };
+    cleanedMissing = cleanedMissing.filter(f => f !== 'date');
+    parsed.date = dayjs().format('YYYY-MM-DD');
+  } else if (foundYesterday) {
+    resolvedDateConfirm = { resolved: dayjs().subtract(1, 'day'), keyword: foundYesterday };
+    cleanedMissing = cleanedMissing.filter(f => f !== 'date');
+    parsed.date = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+  }
+}
+// ─────────────────────────────────────────────────────────────────
+
+if (cleanedMissing.length === 0) {
         prefillFromParsed(parsed);
         setMode("A");
+        if (resolvedDateConfirm) setDateConfirm(resolvedDateConfirm);
       } else {
         parsedCacheRef.current = parsed;
-        setModeBMissingFields(missing_required);
+        setModeBMissingFields(cleanedMissing);
         setModeBShowRecovery(true);
+        if (resolvedDateConfirm) setDateConfirm(resolvedDateConfirm);
       }
     } catch (e) { setModeBError(`Parse-Fehler: ${e.message}`); }
     finally { setModeBParsing(false); }
@@ -747,7 +799,72 @@ export default function ProjectForm() {
           </div>
         </div>
       </Modal>
-
+{/* Date Confirmation Modal */}
+{dateConfirm && (
+  <Modal
+    open={true}
+    onCancel={() => setDateConfirm(null)}
+    footer={null}
+    centered
+    width={400}
+    title={null}
+  >
+    <div style={{ padding: "8px 0 16px" }}>
+      <Text style={{
+        color: "#e0e0e0", fontFamily: "IBM Plex Mono, monospace",
+        fontSize: 15, fontWeight: 600, display: "block",
+        marginBottom: 6, textAlign: "center"
+      }}>
+        {reportLang === "de" ? "Datum bestätigen" :
+         reportLang === "en" ? "Confirm date" : "Confirmar fecha"}
+      </Text>
+      <Text style={{
+        color: "#666", fontSize: 13, display: "block",
+        marginBottom: 20, textAlign: "center", lineHeight: 1.8
+      }}>
+        {reportLang === "de" ? "Erkannt" : reportLang === "en" ? "Detected" : "Detectado"}:{" "}
+        <span style={{ color: "#1d9fe8", fontFamily: "IBM Plex Mono, monospace" }}>
+          „{dateConfirm.keyword}"
+        </span>
+        <br />
+        {reportLang === "de" ? "Aufgelöst zu" : reportLang === "en" ? "Resolved to" : "Resuelto a"}:{" "}
+        <span style={{ color: "#e0e0e0", fontWeight: 600 }}>
+          {dateConfirm.resolved.format("DD.MM.YYYY")}
+        </span>
+        <br /><br />
+        {reportLang === "de"
+          ? "Bericht für dieses Datum erstellen?"
+          : reportLang === "en"
+          ? "Create report for this date?"
+          : "¿Crear informe para esta fecha?"}
+      </Text>
+      <div style={{ display: "flex", gap: 12 }}>
+        <Button
+          block
+          type="primary"
+          onClick={() => {
+            setReportDate(dateConfirm.resolved);
+            setDateConfirm(null);
+          }}
+          style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 600 }}
+        >
+          {dateConfirm.resolved.format("DD.MM.YYYY")}
+        </Button>
+        <Button
+          block
+          onClick={() => setDateConfirm(null)}
+          style={{
+            background: "transparent", borderColor: "#333",
+            color: "#a0a0a0", fontFamily: "IBM Plex Mono, monospace"
+          }}
+        >
+          {reportLang === "de" ? "Datum ändern" :
+           reportLang === "en" ? "Change date" : "Cambiar fecha"}
+        </Button>
+      </div>
+    </div>
+  </Modal>
+)}
 
     </div>
   );
