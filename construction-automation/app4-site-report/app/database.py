@@ -10,13 +10,15 @@ async def connect_to_mongo() -> None:
     global _client
     uri = environ.get("MONGODB_URI")
     if not uri:
-        raise RuntimeError("MONGO_URI environment variable is not set")
-    _client = AsyncIOMotorClient(uri)
-
-    # Ping to verify connection on startup
-
-    await _client.admin.command("ping")
-    print("[DB] Connected to MongoDB Atlas")
+        raise RuntimeError("MONGODB_URI environment variable is not set")
+    _client = AsyncIOMotorClient(
+        uri,
+        serverSelectionTimeoutMS=5000,  # 5s max wait
+        connectTimeoutMS=5000,
+        socketTimeoutMS=5000,
+    )
+    # Connect lazily on first use
+    print("[DB] MongoDB client initialised (lazy connection)")
 
 async def close_mongo_connection() -> None:
     global _client

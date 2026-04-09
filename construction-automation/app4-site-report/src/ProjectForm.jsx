@@ -238,9 +238,9 @@ const SCHWERE_COLORS = {
   critical: { bg: "#2a0000", border: "#800000", text: "#f87171" },
 };
 
-export default function ProjectForm() {
+export default function ProjectForm({ initialLang = "de" }) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [reportLang, setReportLang] = useState("de");
+  const [reportLang, setReportLang] = useState(initialLang);
   const t = LANG[reportLang] || LANG.de;
   const [mode, setMode] = useState("A");
 
@@ -671,7 +671,7 @@ if (cleanedMissing.length === 0) {
   const besonderheitenLocked = noWorks && noWorksReason && noWorksReason !== "kein_arbeitstag";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#111", fontFamily: "IBM Plex Sans, sans-serif", padding: "24px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#111", fontFamily: "IBM Plex Sans, sans-serif", padding: "24px 0" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
@@ -736,7 +736,7 @@ if (cleanedMissing.length === 0) {
         input[type="time"]:focus{outline:none;border-color:#1d6fa4;box-shadow:0 0 0 2px rgba(29,111,164,0.2)}
       `}</style>
 
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+      <div className="g2t-container">
         {/* Header */}
         <div style={{ marginBottom: 24, borderBottom: "1px solid #222", paddingBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
