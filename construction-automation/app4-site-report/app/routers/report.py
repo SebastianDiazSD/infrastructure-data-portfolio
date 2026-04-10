@@ -9,6 +9,7 @@ from app.services.auth_service import decode_access_token
 from jose import JWTError
 from app.routers.auth import get_current_user
 from app.services.report_store import save_report, get_reports
+from app.database import get_db
 
 router = APIRouter()
 
@@ -70,3 +71,25 @@ async def get_report(report_id: str, current_user=Depends(get_current_user)):
     if doc.get("user_id") != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     return doc
+
+@router.put("/reports/{report_id}")
+async def update_report(
+    report_id: str,
+    updated_data: dict,
+    current_user=Depends(get_current_user)
+):
+    from app.services.report_store import get_report_by_id
+    from bson import ObjectId
+    doc = await get_report_by_id(report_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if doc.get("user_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if doc.get("locked"):
+        raise HTTPException(status_code=403, detail="Report is locked — editing not permitted after 7 days")
+    db = get_db()
+    await db.reports.update_one(
+        {"_id": ObjectId(report_id)},
+        {"$set": {"report_data": updated_data}}
+    )
+    return {"updated": True, "report_id": report_id}
