@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from app.database import connect_to_mongo,close_mongo_connection
 from app.routers.auth import router as auth_router
 import os
+from fastapi import Response
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,6 +37,9 @@ app.include_router(parse.router, prefix="/api")
 # User authentication
 app.include_router(auth_router)
 
+@app.head("/")
+async def head_root():
+    return Response(status_code=200)
 
 @app.get("/health")
 def health_check():
