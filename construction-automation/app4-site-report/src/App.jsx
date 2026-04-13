@@ -28,6 +28,7 @@ const AUTH_LANG = {
     continueAnon: "Ohne Konto fortfahren",
     historyLoginRequired: "Verlauf benötigt ein Konto — bitte anmelden.",
     pwWeak: "Passwort braucht: min. 8 Zeichen, 1 Großbuchstabe, 1 Zahl, 1 Sonderzeichen (z.B. Test1234!).",
+    historyLoginRequired: "Verlauf benötigt ein Konto — bitte anmelden.",
   },
   en: {
     welcome: "Site documentation,",
@@ -50,6 +51,7 @@ const AUTH_LANG = {
     continueAnon: "Continue without account",
     historyLoginRequired: "History requires an account — please sign in.",
     pwWeak: "Password needs: min. 8 characters, 1 uppercase, 1 number, 1 special character (e.g. Test1234!).",
+    historyLoginRequired: "History requires an account — please sign in.",
   },
   es: {
     welcome: "Documentación de obra,",
@@ -72,6 +74,7 @@ const AUTH_LANG = {
     continueAnon: "Continuar sin cuenta",
     historyLoginRequired: "El historial requiere una cuenta — inicia sesión.",
     pwWeak: "Contraseña necesita: mín. 8 caracteres, 1 mayúscula, 1 número, 1 símbolo (ej. Test1234!).",
+    historyLoginRequired: "El historial requiere una cuenta — inicia sesión.",
   },
 };
 
@@ -472,16 +475,25 @@ export default function App() {
                 label={AL.history}
                 sublabel={AL.historySub}
                 delay={120}
-                onClick={() => {
-                  if (!token) {
-                    // Redirect to auth with explanation message
-                    setAuthError(AL.historyLoginRequired);
-                    setLoginMode("login");
-                    setScreen("auth");
-                  } else {
-                    setScreen("history");
-                  }
-                }}
+                onClick={async () => {
+  if (!token) {
+    setAuthError(AL.historyLoginRequired);
+    setLoginMode("login");
+    setScreen("auth");
+    return;
+  }
+  // Quick token check before entering history
+  const res = await fetch("/api/reports", { headers: { "Authorization": `Bearer ${token}` } });
+  if (res.status === 401) {
+    localStorage.removeItem("g2t_token");
+    setToken(null);
+    setAuthError(AL.historyLoginRequired);
+    setLoginMode("login");
+    setScreen("auth");
+  } else {
+    setScreen("history");
+  }
+}}
               />
             </div>
           </FadeScreen>

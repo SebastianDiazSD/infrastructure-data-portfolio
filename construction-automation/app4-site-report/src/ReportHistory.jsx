@@ -121,6 +121,7 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
       const res = await fetch("/api/reports", {
         headers: { "Authorization": `Bearer ${token}` },
       });
+      if (res.status === 401) throw new Error("SESSION_EXPIRED");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setReports(data.reports || []);
@@ -241,7 +242,7 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
   // ── Month grid — 4 columns × 3 rows ────────────────────────────────────
   const renderMonthGrid = () => (
     <>
-      <div style={{
+      <div className="g2t-month-grid" style={{
         display: "grid",
         gridTemplateColumns: "repeat(4, 1fr)",
         gap: "clamp(8px, 1.5vw, 16px)",
@@ -252,13 +253,13 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
           const isFuture   = monthDate.isAfter(today, "month");
           const isCurrent  = monthDate.isSame(today, "month");
 
-          let bg = "#161616", border = "#252525", nameColor = "#555", numColor = "#333";
-          if (!isFuture) {
-            if (count >= 20)      { bg = "#0a2215"; border = "#1e5c30"; nameColor = "#e0e0e0"; numColor = "#4ade80"; }
-            else if (count >= 10) { bg = "#0a2215"; border = "#1a4a28"; nameColor = "#c0c0c0"; numColor = "#86efac"; }
-            else if (count >= 1)  { bg = "#1a1a0a"; border = "#3a3a10"; nameColor = "#a0a0a0"; numColor = "#facc15"; }
-            else                  { bg = "#161616"; border = "#252525"; nameColor = "#444";    numColor = "#333";    }
-          }
+          let bg = "#161616", border = "#252525", nameColor = "#999", numColor = "#999";
+if (!isFuture) {
+  if (count >= 20)      { bg = "#0a2215"; border = "#1e5c30"; nameColor = "#e0e0e0"; numColor = "#4ade80"; }
+  else if (count >= 10) { bg = "#0a2215"; border = "#1a4a28"; nameColor = "#c0c0c0"; numColor = "#86efac"; }
+  else if (count >= 1)  { bg = "#1a1a0a"; border = "#3a3a10"; nameColor = "#b0b0b0"; numColor = "#facc15"; }
+  else                  { bg = "#161616"; border = "#252525"; nameColor = "#999";    numColor = "#999";    }
+}
           if (isCurrent) border = "#1d9fe8";
 
           return (
@@ -290,7 +291,6 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
                 }
               }}
             >
-              {/* Month name — full on desktop, short on small screens via CSS */}
               <div style={{
                 color: nameColor,
                 fontFamily: mono,
@@ -303,8 +303,7 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}>
-                {/* Show short name on very small screens */}
-                <span className="month-full">{monthName}</span>
+                {MSHORT[i]}
               </div>
               <div style={{
                 color: numColor,
@@ -397,9 +396,9 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
           marginBottom: "clamp(4px, 0.8vw, 8px)",
         }}>
           {DAYS.map(h => (
-            <div key={h} style={{
+            <div key={h} className="g2t-day-hdr" style={{
               textAlign: "center",
-              color: "#444",
+              color: "#555",
               fontFamily: mono,
               fontSize: "clamp(9px, 1.2vw, 11px)",
               textTransform: "uppercase",
@@ -441,6 +440,7 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
                   : isPast ? HL.noReports : ""}
               >
                 <div
+                  className="g2t-day-cell"
                   onClick={() => hasReport && handleDayClick(dateStr)}
                   style={{
                     background: isSelected ? "#1a3a54" : colors.bg,
@@ -461,8 +461,8 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
                   onMouseEnter={e => { if (hasReport) { e.currentTarget.style.borderColor = "#1d6fa4"; e.currentTarget.style.boxShadow = "0 0 0 1px #1d6fa4"; } }}
                   onMouseLeave={e => { if (hasReport) { e.currentTarget.style.borderColor = isToday ? "#1d9fe8" : isSelected ? "#1d6fa4" : colors.border; e.currentTarget.style.boxShadow = "none"; } }}
                 >
-                  <div style={{
-                    color: isPast ? (hasReport ? colors.text : "#444") : "#222",
+                  <div className="g2t-day-num" style={{
+                    color: isPast ? (hasReport ? colors.text : "#999") : "#333",
                     fontFamily: mono,
                     fontSize: "clamp(10px, 1.6vw, 14px)",
                     fontWeight: 600,
@@ -470,7 +470,7 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
                   }}>
                     {String(dayNum).padStart(2, "0")}
                   </div>
-                  <div style={{ fontSize: "clamp(10px, 1.5vw, 16px)", lineHeight: 1, marginTop: 2 }}>
+                  <div className="g2t-day-dot" style={{ fontSize: "clamp(10px, 1.5vw, 16px)", lineHeight: 1, marginTop: 2 }}>
                     {colors.dot || ""}
                   </div>
                   {isToday && (
@@ -571,10 +571,14 @@ export default function ReportHistory({ token, onNewReport, lang = "de" }) {
 
         {/* Error */}
         {error && (
-          <div style={{ marginBottom: 16, padding: "12px 16px", background: "#2a1010", border: "1px solid #5a1e1e", borderRadius: 10, color: "#f87171", fontFamily: mono, fontSize: 12 }}>
-            {error}
-          </div>
-        )}
+  <div style={{ marginBottom: 16, padding: "12px 16px", background: "#2a1010", border: "1px solid #5a1e1e", borderRadius: 10, color: "#f87171", fontFamily: mono, fontSize: 12 }}>
+    {error === "SESSION_EXPIRED"
+      ? (lang === "de" ? "Sitzung abgelaufen — bitte erneut anmelden."
+        : lang === "es" ? "Sesión expirada — inicia sesión de nuevo."
+        : "Session expired — please sign in again.")
+      : error}
+  </div>
+)}
 
         {/* ── Animated content ── */}
         <div style={{
