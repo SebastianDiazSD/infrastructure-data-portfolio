@@ -19,6 +19,7 @@ class _State extends State<CameraScreen> {
   bool _processing = false;
   String _status = 'Initialising model...';
   double _threshold = AppConfig.confThreshold; // adjustable for testing
+  FlashMode _flashMode = FlashMode.off;
   final _detector = DetectorService();
   final _severity = SeverityService();
   final _picker   = ImagePicker();
@@ -98,6 +99,15 @@ class _State extends State<CameraScreen> {
     await _processImage(File(picked.path));
   }
 
+  Future<void> _toggleFlash() async {
+  if (_ctrl == null || !_ctrl!.value.isInitialized) return;
+  final next = _flashMode == FlashMode.off
+      ? FlashMode.torch   // continuous torch for night inspection
+      : FlashMode.off;
+  await _ctrl!.setFlashMode(next);
+  setState(() => _flashMode = next);
+}
+
   @override
   void dispose() { _ctrl?.dispose(); _detector.dispose(); super.dispose(); }
 
@@ -109,14 +119,27 @@ class _State extends State<CameraScreen> {
       title: const Text('G2T Inspector',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Icon(
-            _detector.isReady ? Icons.check_circle : Icons.error,
-            color: _detector.isReady ? Colors.green : Colors.red,
-          ),
-        ),
-      ],
+  // Flash Toggle Button
+  Padding(
+    padding: const EdgeInsets.only(right: 12),
+    child: IconButton(
+      icon: Icon(
+        _flashMode == FlashMode.torch ? Icons.flash_on : Icons.flash_off,
+        color: _flashMode == FlashMode.torch ? Colors.yellow : Colors.white54,
+      ),
+      onPressed: _toggleFlash,
+      tooltip: 'Toggle torch',
+    ),
+  ),
+  // Status Icon (non-interactive)
+  Padding(
+    padding: const EdgeInsets.only(right: 12),
+    child: Icon(
+      _detector.isReady ? Icons.check_circle : Icons.error,
+      color: _detector.isReady ? Colors.green : Colors.red,
+    ),
+  ),
+],
     ),
     body: Column(children: [
       Expanded(child: _ctrl?.value.isInitialized == true
