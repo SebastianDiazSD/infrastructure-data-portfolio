@@ -238,11 +238,11 @@ const SCHWERE_COLORS = {
   critical: { bg: "#2a0000", border: "#800000", text: "#f87171" },
 };
 
-export default function ProjectForm({ initialLang = "de" }) {
+export default function ProjectForm({ initialLang = "de", initialMode = "A" }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [reportLang, setReportLang] = useState(initialLang);
   const t = LANG[reportLang] || LANG.de;
-  const [mode, setMode] = useState("A");
+  const [mode, setMode] = useState(initialMode);
 
   // Mode B
   const [modeBText, setModeBText] = useState("");

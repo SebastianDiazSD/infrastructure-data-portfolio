@@ -1,0 +1,20 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.g.dart
+
+# Android
+android/local.properties
+android/.gradle/
+android/key.properties
+
+# Assets - model too large for git
+assets/models/*.onnx
+
+# Ground2Tech sensitive
+.env
+run.sh
+lib/config/app_config.dart
+.idea/
