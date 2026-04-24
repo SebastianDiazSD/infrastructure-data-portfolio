@@ -8,6 +8,7 @@ import '../services/detector_service.dart';
 import '../services/severity_service.dart';
 import '../config/app_config.dart';
 import 'result_screen.dart';
+import 'feedback_history_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -119,6 +120,14 @@ class _State extends State<CameraScreen> {
       title: const Text('G2T Inspector',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       actions: [
+  // History button
+  IconButton(
+    icon: const Icon(Icons.history, color: Colors.white70),
+    onPressed: () => Navigator.push(context,
+        MaterialPageRoute(
+            builder: (_) => const FeedbackHistoryScreen())),
+    tooltip: 'Feedback history',
+  ),
   // Flash Toggle Button
   Padding(
     padding: const EdgeInsets.only(right: 12),

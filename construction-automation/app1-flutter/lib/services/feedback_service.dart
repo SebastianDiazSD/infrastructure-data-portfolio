@@ -51,6 +51,11 @@ class FeedbackService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  Future<void> delete(int id) async {
+    await init();
+    await _db!.delete('feedback', where: 'id = ?', whereArgs: [id]);
+  }
+
   /// Export all entries as a Kaggle-ready ZIP:
   ///   feedback_export/
   ///     images/  ← copies of the original images (EXIF already stripped)
