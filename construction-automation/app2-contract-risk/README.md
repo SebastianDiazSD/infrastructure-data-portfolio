@@ -58,3 +58,10 @@ legal proceedings.
 - V1 (May 2026): VOB/B text PDFs, §4/§8/§13/§16 clause detection, split-pane UI, DOCX export
 - V2: Multiple document upload (LV + Baubeschreibung + contract), clause comparison against standard VOB/B text
 - V3: Integration with App 4 — flagged contract risks linked to site report defect entries
+
+---
+
+## Planned Extension — Nachtragsmanagement (Phase 2)
+
+Post-signing workflow: compare Nachtrag claims against the original LV,
+VOB/B §2 justification check, price reasonableness assessment, memo generation.
