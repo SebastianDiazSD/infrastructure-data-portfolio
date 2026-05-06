@@ -24,6 +24,7 @@ import io
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -33,6 +34,7 @@ from gaeb_parser import is_gaeb_file, parse_gaeb_file
 from risk_scorer import score_clauses, aggregate_risk_summary
 from nachtrag_scorer import analyze_nachtrag
 from exporter import export_risk_report_docx, export_stellungnahme_docx
+from contract_qa import answer_question
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,8 @@ _MAX_UPLOAD_BYTES = int(os.getenv("UPLOAD_MAX_MB", "20")) * 1024 * 1024
 # Keyed by MD5(file_bytes). Survives within one Render dyno lifetime.
 # Cleared on restart. Acceptable for V1 — no user accounts yet.
 _cache: dict[str, dict] = {}
+# Clause-only cache for Q&A — keyed by same MD5 as _cache
+_clause_cache: dict[str, list] = {}
 
 
 def _md5(data: bytes) -> str:
@@ -139,7 +143,7 @@ async def analyze_contract(file: UploadFile = File(...)):
     # Cache hit
     key = _md5(content)
     if key in _cache:
-        return _cache[key]
+        return {**_cache[key], "session_id": key}
 
     # Parse
     text, page_count = extract_text(content)
@@ -170,8 +174,36 @@ async def analyze_contract(file: UploadFile = File(...)):
 
     result = {"clauses": scored, "summary": summary}
     _cache[key] = result
-    return result
+    _clause_cache[key] = scored  # for Q&A endpoint
+    return {**result, "session_id": key}
 
+# ── Mode A: Q&A over analyzed contract ───────────────────────────────────────
+
+class QARequest(BaseModel):
+    session_id: str
+    question: str
+
+@app.post("/ask-contract")
+async def ask_contract(req: QARequest):
+    """
+    Free-text Q&A over a previously analyzed contract.
+    session_id comes from /analyze-contract response.
+    question is a plain-language question about the contract.
+    """
+    if not req.session_id or not req.question.strip():
+        raise HTTPException(status_code=400, detail="session_id and question are required.")
+
+    clauses = _clause_cache.get(req.session_id)
+    if not clauses:
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found. Upload and analyze the contract first."
+        )
+
+    if len(req.question) > 500:
+        raise HTTPException(status_code=400, detail="Question too long. Max 500 characters.")
+
+    return await answer_question(clauses, req.question)
 
 # ── Mode B: Nachtrag review ───────────────────────────────────────────────────
 

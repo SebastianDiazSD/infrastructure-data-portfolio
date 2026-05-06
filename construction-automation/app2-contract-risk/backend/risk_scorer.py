@@ -174,6 +174,20 @@ async def _score_one(clause: dict) -> dict:
         for key in ("risk_level", "risk_category", "reason", "suggestion"):
             if key not in scoring:
                 raise KeyError(key)
+        # Strip nested fences Claude occasionally puts inside string fields
+        for field in ("reason", "suggestion"):
+            val = scoring[field]
+            if isinstance(val, str) and val.strip().startswith("```"):
+                parts = val.strip().split("```")
+                inner = parts[1]
+                if "\n" in inner:
+                    inner = inner[inner.index("\n") + 1:]
+                inner = inner.strip()
+                try:
+                    inner_json = json.loads(inner)
+                    scoring[field] = inner_json.get(field, inner)
+                except json.JSONDecodeError:
+                    scoring[field] = inner
     except (json.JSONDecodeError, KeyError):
         # Malformed response: mark medium, include raw for debugging
         scoring = {

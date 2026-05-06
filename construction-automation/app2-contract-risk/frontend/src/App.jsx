@@ -3,6 +3,7 @@ import DropZone from './components/DropZone.jsx'
 import SplitPane from './components/SplitPane.jsx'
 import NachtragUpload from './components/NachtragUpload.jsx'
 import NachtragResult from './components/NachtragResult.jsx'
+import ContractChat from './components/ContractChat.jsx'
 
 // overall_risk_level from backend: 'HIGH' | 'MEDIUM' | 'LOW'
 function riskChip(level) {
@@ -36,7 +37,7 @@ export default function App() {
   const [mode, setMode] = useState('modeA')
 
   // Mode A: pre-signing contract risk
-  const [modeA, setModeA] = useState({ ...IDLE, selectedIdx: 0 })
+  const [modeA, setModeA] = useState({ ...IDLE, selectedIdx: 0, sessionId: null })
 
   // Mode B: Nachtrag review
   const [modeB, setModeB] = useState({ ...IDLE })
@@ -53,7 +54,7 @@ export default function App() {
         throw new Error(body.detail ?? `HTTP ${res.status}`)
       }
       const data = await res.json()
-      setModeA({ status: 'done', result: data, error: null, selectedIdx: 0 })
+      setModeA({ status: 'done', result: data, error: null, selectedIdx: 0, sessionId: data.session_id ?? null })
     } catch (e) {
       setModeA({ status: 'error', result: null, error: e.message, selectedIdx: 0 })
     }
@@ -133,7 +134,7 @@ export default function App() {
           onFile={analyzeContract}
           onSelect={(i) => setModeA((s) => ({ ...s, selectedIdx: i }))}
           onExport={exportReport}
-          onReset={() => setModeA({ ...IDLE, selectedIdx: 0 })}
+          onReset={() => setModeA({ ...IDLE, selectedIdx: 0, sessionId: null })}
         />
       )}
 
@@ -205,11 +206,20 @@ function ModeAView({ state, chip, onFile, onSelect, onExport, onReset }) {
             </div>
           </div>
 
-          <SplitPane
-            clauses={state.result.clauses ?? []}
-            selectedIdx={state.selectedIdx}
-            onSelect={onSelect}
-          />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
+              <SplitPane
+                clauses={state.result.clauses ?? []}
+                selectedIdx={state.selectedIdx}
+                onSelect={onSelect}
+              />
+            </div>
+            {state.sessionId && (
+              <div className="h-72 shrink-0">
+                <ContractChat sessionId={state.sessionId} />
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

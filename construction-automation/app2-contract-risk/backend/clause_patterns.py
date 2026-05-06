@@ -133,12 +133,29 @@ def extract_clauses(text: str, config: dict = None) -> list:
         char_pos = start_offset + match.start()
         page_estimate = max(1, char_pos // 3000 + 1)
 
-        # Skip TOC entries: body is dots/whitespace with no real content
+        # Filter 1: dot-leader TOC (single line, mostly dots)
         clean_body = body.strip().replace('.', '').replace(' ', '').replace('\n', '')
         if len(clean_body) < 50:
             continue
 
-        clauses.append({
+        # Filter 2: multi-line TOC block (body is list of "heading (§X)  N" lines)
+        # Signal: >60% of non-empty lines end with a standalone page number
+        body_lines = [l.strip() for l in body.strip().split('\n') if l.strip()]
+        if len(body_lines) >= 3:
+            toc_lines = sum(
+                1 for l in body_lines if re.search(r'\(\s*§\s*\d+\s*\)\s*\d*\s*$', l) or re.match(r'^\d+\s*$', l))
+            if toc_lines / len(body_lines) > 0.5:
+                continue
+
+                # Filter 3: fragment titles — cross-reference mid-sentence captures
+                # Real titles are noun phrases. Fragments start with "und/oder N)"
+                # or are just "Abs. N)" with unmatched closing paren.
+            if re.match(r'^(und|oder)\s+\d+\)', title) or \
+                    re.match(r'^Abs\.\s+[\d\w,\s]+\)\s*$', title) or \
+                    (title.endswith(')') and '(' not in title and len(title) < 20):
+                continue
+
+            clauses.append({
             "number": number,
             "title": title,
             "text": body[:2000],
