@@ -23,6 +23,10 @@ CLAUSE_CONFIGS = {
             r"ohne\s+Abmahnung", r"Rücktritt", r"Bürgschaft auf Abruf",
         ],
         "density_anchor": r'§\s*\d+',
+        "alt_patterns": [
+            r'^(\d{1,2}\.\d+\.\d+)\s+([^\n]{2,80})',   # BVB: 16.1.3 Qualitätssicherung
+            r'^(\d{1,2})\s+([A-ZÄÖÜ][^\n]{3,80})',      # ZVB-DB: 2 Alternativpositionen
+        ],
         "language": "de",
         "standard": "VOB/B",
     },
@@ -102,25 +106,8 @@ def find_vob_b_start_by_density(full_text: str, config: dict = None) -> int:
     return best_offset
 
 
-def extract_clauses(text: str, config: dict = None) -> list:
-    """
-    Extract numbered clauses from contract text.
-
-    Uses the active config's pattern to find all headers, then slices body
-    text between consecutive headers. Handles § / Article / Clausula equally.
-
-    Returns list of dicts with keys:
-        number, title, text (capped 2000 chars), page_start, has_risk_signals
-    """
-    if config is None:
-        config = ACTIVE_CONFIG
-
-    start_offset = find_vob_b_start_by_density(text, config)
-    working_text = text[start_offset:]
-
-    header_re = re.compile(config["pattern"], re.MULTILINE)
-    matches = list(header_re.finditer(working_text))
-
+def _apply_filters(matches, working_text, start_offset, config) -> list:
+    """Apply all filters to a match list and return valid clauses."""
     clauses = []
     for i, match in enumerate(matches):
         number = re.sub(r'\s+', ' ', match.group(1)).strip()
@@ -133,13 +120,12 @@ def extract_clauses(text: str, config: dict = None) -> list:
         char_pos = start_offset + match.start()
         page_estimate = max(1, char_pos // 3000 + 1)
 
-        # Filter 1: dot-leader TOC (single line, mostly dots)
+        # Filter 1: dot-leader TOC
         clean_body = body.strip().replace('.', '').replace(' ', '').replace('\n', '')
         if len(clean_body) < 50:
             continue
 
-        # Filter 2: multi-line TOC block (body is list of "heading (§X)  N" lines)
-        # Signal: >60% of non-empty lines end with a standalone page number
+        # Filter 2: multi-line TOC block
         body_lines = [l.strip() for l in body.strip().split('\n') if l.strip()]
         if len(body_lines) >= 3:
             toc_lines = sum(
@@ -147,21 +133,67 @@ def extract_clauses(text: str, config: dict = None) -> list:
             if toc_lines / len(body_lines) > 0.5:
                 continue
 
-                # Filter 3: fragment titles — cross-reference mid-sentence captures
-                # Real titles are noun phrases. Fragments start with "und/oder N)"
-                # or are just "Abs. N)" with unmatched closing paren.
-            if re.match(r'^(und|oder)\s+\d+\)', title) or \
-                    re.match(r'^Abs\.\s+[\d\w,\s]+\)\s*$', title) or \
-                    (title.endswith(')') and '(' not in title and len(title) < 20):
-                continue
+        # Filter 3: fragment titles
+        if re.match(r'^Abs\.', title) or \
+                re.match(r'^Hinweis:', title) or \
+                re.match(r'^[a-zäöüß]', title) or \
+                re.match(r'^\(', title) or \
+                re.match(r'^(BGB|VOB|HGB|EStG|GWB)\b', title) or \
+                re.match(r'^Ziffer\b', title) or \
+                re.match(r'^(und|oder)\s+\d+\)', title) or \
+                (title.endswith(')') and '(' not in title and len(title) < 20) or \
+                title.endswith(',') or \
+                title.endswith('-'):
+            continue
 
-            clauses.append({
+        clauses.append({
             "number": number,
             "title": title,
             "text": body[:2000],
             "page_start": page_estimate,
             "has_risk_signals": has_risk_signals(body, number, config),
         })
+    return clauses
+
+
+def extract_clauses(text: str, config: dict = None) -> list:
+    """
+    Extract numbered clauses from contract text.
+
+    Uses the active config's pattern to find all headers, then slices body
+    text between consecutive headers. Handles § / Article / Clausula equally.
+    Falls back to alt_patterns (decimal BVB, numeric ZVB-DB) when primary
+    pattern yields fewer than 3 clauses after filtering.
+
+    Returns list of dicts with keys:
+        number, title, text (capped 2000 chars), page_start, has_risk_signals
+    """
+    if config is None:
+        config = ACTIVE_CONFIG
+
+    start_offset = find_vob_b_start_by_density(text, config)
+    working_text = text[start_offset:]
+
+    header_re = re.compile(config["pattern"], re.MULTILINE)
+    matches = list(header_re.finditer(working_text))
+    clauses = _apply_filters(matches, working_text, start_offset, config)
+
+    # Fallback: primary filtered to < 3 — try alt patterns on full text
+    if len(clauses) < 3:
+        for alt_pattern in config.get("alt_patterns", []):
+            alt_re = re.compile(alt_pattern, re.MULTILINE)
+            alt_matches = list(alt_re.finditer(text))
+            alt_clauses = _apply_filters(alt_matches, text, 0, config)
+            if len(alt_clauses) > len(clauses):
+                clauses = alt_clauses
+                break
+
+     # Dedup: TOC entries appear before real clauses with same number.
+    # Keep last occurrence — it has the longer, real body.
+    seen: dict[str, int] = {}
+    for idx, c in enumerate(clauses):
+        seen[c["number"]] = idx
+    clauses = [clauses[i] for i in sorted(seen.values())]
 
     return clauses
 

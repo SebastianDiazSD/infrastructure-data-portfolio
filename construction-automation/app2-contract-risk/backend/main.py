@@ -307,3 +307,9 @@ async def export_stellungnahme(data: dict):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": 'attachment; filename="stellungnahme.docx"'},
     )
+
+# ── Static frontend (production) ──────────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(_static_dir):
+    app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
