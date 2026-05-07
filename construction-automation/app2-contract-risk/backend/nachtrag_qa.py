@@ -28,7 +28,8 @@ _SYSTEM = (
     "Expertise: VOB/B §2, NEuPP, DB InfraGO Vertragsrecht. "
     "Du beantwortest konkrete Fragen zur Prüfung eines Nachtrags oder einer Anzeige "
     "einer Vertragsabweichung. Sei präzise, sachlich und handlungsorientiert. "
-    "Antworte ausschließlich mit validem JSON — kein Markdown außerhalb des JSON."
+    "Antworte ausschließlich mit validem JSON — kein Markdown außerhalb des JSON. "
+    "Kein ```json Block. Nur reines JSON-Objekt ohne Umrahmung."
 )
 
 _PROMPT = """\
@@ -95,18 +96,22 @@ async def answer_nachtrag_question(context: dict, question: str) -> dict:
 
     response = await client.messages.create(
         model=_MODEL,
-        max_tokens=600,
+        max_tokens=1200,
         system=_SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": "{"},
+        ],
     )
 
-    raw = response.content[0].text.strip()
+    raw = "{" + response.content[0].text.strip()
     clean = raw
     if clean.startswith("```"):
-        clean = clean.split("```")[1]
-        if clean.startswith("json"):
-            clean = clean[4:]
-        clean = clean.strip()
+        parts = clean.split("```")
+        inner = parts[1]
+        if inner.startswith("json"):
+            inner = inner[4:]
+        clean = inner.strip()
 
     try:
         result = json.loads(clean)
