@@ -33,7 +33,7 @@ _PRICE_RE = re.compile(
 _POS_HEADER_RE = re.compile(
     r'(?:'
     r'\d{1,2}\.\d{3}\.\d{4}'       # OZ full: 01.001.0010
-    r'|\d{1,2}\.\d{3}'             # OZ partial: 01.001
+    r'|\d{1,2}\.\d{1,3}(?![.\d]*,)'  # OZ partial — rejects currency (has comma downstream)
     r'|(?:Pos(?:ition)?\.?\s*)\d+' # Pos. N / Position N
     r'|\b\d+\.\s+'                 # Running number: "3. "
     r')',
@@ -100,6 +100,8 @@ def extract_nachtrag_data(pdf_bytes: bytes) -> dict:
 
     begründung = _extract_begründung(text)
     positions = _extract_positions_regex(text)
+    if len(positions) < 2:
+        positions = _extract_nt_lv_positions(text)
     total_claimed = _extract_total_claimed(text)
 
     return {
@@ -193,6 +195,67 @@ def _extract_positions_regex(text: str) -> list[dict]:
 
     return positions
 
+_NT_LV_OZ_RE = re.compile(r'^(\d{2}\.\d+\.\d+)\.\s*$', re.MULTILINE)
+
+
+def _extract_nt_lv_positions(text: str) -> list[dict]:
+    """
+    Extract positions from NT-LV format (Zulage structure).
+    OZ is on its own line, prices follow in fixed order at end of block.
+    Handles NT100-style documents with 100+ positions without LLM.
+    """
+    lines = text.split('\n')
+    oz_indices = []
+    for i, line in enumerate(lines):
+        m = _NT_LV_OZ_RE.match(line.strip())
+        if m:
+            oz_indices.append((i, m.group(1)))
+
+    if len(oz_indices) < 2:
+        return []
+
+    positions = []
+    for idx, (line_i, oz) in enumerate(oz_indices):
+        end_line = oz_indices[idx + 1][0] if idx + 1 < len(oz_indices) else len(lines)
+        segment = lines[line_i:end_line]
+
+        # Title = first non-empty line after OZ
+        title = ""
+        for line in segment[1:4]:
+            if line.strip():
+                title = line.strip()
+                break
+
+        # Prices are the last 3 numeric-ish lines before the next OZ
+        # Pattern from end: total / unit_price / qty+unit
+        numeric_lines = []
+        for line in reversed(segment):
+            s = line.strip()
+            if re.match(r'^[\d.,]+(\s+[a-zA-Zäöüm²³/]+)?\s*$', s) and s:
+                numeric_lines.append(s)
+            if len(numeric_lines) == 3:
+                break
+
+        total, up, qty, unit = None, None, None, None
+        if len(numeric_lines) >= 2:
+            total = _parse_german_float(numeric_lines[0].split()[0])
+            up = _parse_german_float(numeric_lines[1].split()[0])
+        if len(numeric_lines) >= 3:
+            parts = numeric_lines[2].split()
+            qty = _parse_german_float(parts[0])
+            unit = parts[1] if len(parts) > 1 else None
+
+        if total is not None:
+            positions.append({
+                "oz": oz,
+                "description": title,
+                "qty": qty,
+                "unit": unit,
+                "claimed_unit_price": up,
+                "claimed_total": total,
+            })
+
+    return positions
 
 def _extract_total_claimed(text: str) -> Optional[float]:
     """

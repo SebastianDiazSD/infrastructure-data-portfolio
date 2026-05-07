@@ -127,7 +127,7 @@ async def _extract_nachtrag_positions_via_claude(text: str) -> dict:
         model=_MODEL,
         max_tokens=2000,
         system=_EXTRACT_SYSTEM,
-        messages=[{"role": "user", "content": _EXTRACT_PROMPT.format(text=text[:6000])}],
+        messages=[{"role": "user", "content": _EXTRACT_PROMPT.format(text=text[:15000])}],
     )
     raw = msg.content[0].text.strip()
     try:
@@ -356,20 +356,40 @@ async def _score_position(match: dict, begründung: str) -> dict:
     global _client
     if _client is None:
         _client = _get_client()
-    msg = await _client.messages.create(
-        model=_MODEL,
-        max_tokens=500,
-        system=_position_system(),
-        messages=[{"role": "user", "content": prompt}],
-    )
+    import anthropic as _anthropic
+    for attempt in range(3):
+        try:
+            msg = await _client.messages.create(
+                model=_MODEL,
+                max_tokens=500,
+                system=_position_system(),
+                messages=[{"role": "user", "content": prompt}],
+            )
+            break
+        except _anthropic.RateLimitError:
+            if attempt == 2:
+                raise
+            await asyncio.sleep(2 ** attempt + 1)
     raw = msg.content[0].text.strip()
+    clean = raw
+    if clean.startswith("```"):
+        clean = clean.split("```")[1]
+        if clean.startswith("json"):
+            clean = clean[4:]
+        clean = clean.strip()
 
     try:
-        scoring = json.loads(raw)
+        scoring = json.loads(clean)
         for k in ("assessment", "vob_paragraph", "reason"):
             if k not in scoring:
                 raise KeyError(k)
     except (json.JSONDecodeError, KeyError):
+        reason_text = clean if 'clean' in dir() else raw
+        if reason_text.startswith("```"):
+            reason_text = reason_text.split("```")[1]
+            if reason_text.startswith("json"):
+                reason_text = reason_text[4:]
+            reason_text = reason_text.strip()
         scoring = {
             "assessment": "negotiate",
             "vob_paragraph": "§2 VOB/B (unklar)",
@@ -377,7 +397,7 @@ async def _score_position(match: dict, begründung: str) -> dict:
             "price_assessment": "overstated",
             "price_delta_percent": None,
             "risk_level": "medium",
-            "reason": raw[:300],
+            "reason": reason_text[:300],
             "negotiation_position": "Manuelle Überprüfung erforderlich.",
         }
 
@@ -471,6 +491,89 @@ async def _generate_stellungnahme(
     )
     return msg.content[0].text.strip()
 
+# ── Stage 1: MKA / Anzeige analysis (no positions) ───────────────────────────
+
+_MKA_SYSTEM = (
+    "Du bist ein Baurechts-Sachverständiger auf Auftraggeber-Seite (Bauüberwacher). "
+    "Expertise: VOB/B §2, NEuPP, DB InfraGO Vertragsrecht. "
+    "Antworte ausschließlich mit validem JSON. Kein Markdown außerhalb des JSON."
+)
+
+_MKA_PROMPT = """\
+Analysiere diese Mehrkostenanzeige / Nachtragsbegründung (ohne Positionstabelle).
+
+TEXT:
+{text}
+
+Prüfe dem Grunde nach:
+1. Ist die Anspruchsgrundlage nachvollziehbar (BAU-SOLL vs BAU-IST Darstellung)?
+2. Welcher VOB/B §2-Paragraph greift primär (§2 Abs.5 geänderte Leistung / §2 Abs.6 zusätzliche Leistung / §2 Abs.8 ohne Auftrag)?
+3. Ist eine Anordnung des AG belegt oder nur eine Mehrkostenanzeige eingereicht?
+4. Was fehlt für eine vollständige Prüfung der Höhe nach?
+
+JSON (exakt):
+{{
+  "vob_paragraph_primary": "§2 Abs. X VOB/B",
+  "vob_paragraphs_secondary": ["§2 Abs. Y VOB/B"],
+  "principal_assessment": "justified|partly_justified|not_justified|insufficient_info",
+  "ag_order_documented": true,
+  "missing_documentation": ["fehlende Unterlage 1", "fehlende Unterlage 2"],
+  "preliminary_position": "accept_in_principle|reject|request_more_info",
+  "reason": "Sachliche Begründung (max. 200 Wörter)",
+  "stellungnahme": "Formaler Stellungnahmetext für Antwortschreiben an AN. Kein Briefkopf, kein Datum, kein Grußformel. Sachlich, rechtssicher, max. 400 Wörter."
+}}"""
+
+
+async def _analyze_mka(full_text: str, begründung: str) -> dict:
+    """Stage 1: principled review of MKA/Anzeige document (no position table)."""
+    global _client
+    if _client is None:
+        _client = _get_client()
+
+    text_for_analysis = begründung if len(begründung) > 200 else full_text
+    msg = await _client.messages.create(
+        model=_MODEL,
+        max_tokens=1500,
+        system=_MKA_SYSTEM,
+        messages=[{"role": "user", "content": _MKA_PROMPT.format(text=text_for_analysis[:5000])}],
+    )
+    raw = msg.content[0].text.strip()
+    clean = raw
+    if clean.startswith("```"):
+        clean = clean.split("```")[1]
+        if clean.startswith("json"):
+            clean = clean[4:]
+        clean = clean.strip()
+    try:
+        result = json.loads(clean)
+        for k in ("principal_assessment", "vob_paragraph_primary", "stellungnahme"):
+            if k not in result:
+                raise KeyError(k)
+    except (json.JSONDecodeError, KeyError):
+        result = {
+            "vob_paragraph_primary": "§2 VOB/B (unklar)",
+            "vob_paragraphs_secondary": [],
+            "principal_assessment": "insufficient_info",
+            "ag_order_documented": False,
+            "missing_documentation": ["Vollständige Dokumentation erforderlich"],
+            "preliminary_position": "request_more_info",
+            "reason": raw[:300],
+            "stellungnahme": "Die eingereichte Mehrkostenanzeige konnte nicht vollständig analysiert werden. Bitte vollständige Unterlagen nachreichen.",
+        }
+    return {
+        "stage": "mka",
+        "nachtrag_summary": {
+            "total_claimed": None,
+            "principal_assessment": result["principal_assessment"],
+            "preliminary_position": result["preliminary_position"],
+            "vob_paragraph": result["vob_paragraph_primary"],
+            "position_count": 0,
+        },
+        "positions": [],
+        "missing_documentation": result.get("missing_documentation", []),
+        "reason": result.get("reason", ""),
+        "stellungnahme": result["stellungnahme"],
+    }
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -497,6 +600,11 @@ async def analyze_nachtrag(
         if not total_claimed:
             total_claimed = extracted.get("total_claimed") or 0.0
 
+    # Stage 1 detection: after Claude extraction, still no positions
+    # → this is an MKA/Anzeige document without a position table
+    if len(regex_positions) == 0:
+        return await _analyze_mka(nachtrag_data["full_text"], begründung)
+
     # Step 2: if LV is PDF, extract positions from it
     if lv_pdf_bytes and not lv_positions:
         lv_text, _ = extract_text(lv_pdf_bytes)
@@ -505,8 +613,19 @@ async def analyze_nachtrag(
     # Step 3: match positions
     matched = _match_positions(regex_positions, lv_positions)
 
+    # Cap at 20 highest-value positions to stay within API rate limits.
+    # For Zulage-heavy NTs (100+ positions), full per-position scoring
+    # exceeds the 10k output tokens/min free tier limit.
+    # V2: upgrade tier or batch by OZ chapter (91/92/93/94).
+    if len(matched) > 20:
+        matched = sorted(
+            matched,
+            key=lambda m: float(m["nachtrag"].get("claimed_total") or 0),
+            reverse=True
+        )[:20]
+
     # Step 4: parallel position scoring
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(3)
 
     async def bounded(m):
         async with semaphore:
