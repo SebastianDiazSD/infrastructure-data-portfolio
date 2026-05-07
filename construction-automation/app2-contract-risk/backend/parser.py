@@ -257,6 +257,79 @@ def _extract_nt_lv_positions(text: str) -> list[dict]:
 
     return positions
 
+def _extract_lv_positions_from_text(text: str) -> list[dict]:
+    """
+    Extract original LV positions from text using OZ-on-own-line structure.
+    Returns LV field schema: unit_price / total (not claimed_* NT schema).
+    Reuses _NT_LV_OZ_RE — the OZ line structure is identical in both document types.
+    """
+    lines = text.split('\n')
+    oz_indices = []
+    for i, line in enumerate(lines):
+        m = _NT_LV_OZ_RE.match(line.strip())
+        if m:
+            oz_indices.append((i, m.group(1)))
+
+    if len(oz_indices) < 2:
+        return []
+
+    positions = []
+    for idx, (line_i, oz) in enumerate(oz_indices):
+        end_line = oz_indices[idx + 1][0] if idx + 1 < len(oz_indices) else len(lines)
+        segment = lines[line_i:end_line]
+
+        title = ""
+        for line in segment[1:4]:
+            if line.strip():
+                title = line.strip()
+                break
+
+        numeric_lines = []
+        for line in reversed(segment):
+            s = line.strip()
+            if re.match(r'^[\d.,]+(\s+[a-zA-Zäöüm²³/]+)?\s*$', s) and s:
+                numeric_lines.append(s)
+            if len(numeric_lines) == 3:
+                break
+
+        total, up, qty, unit = None, None, None, None
+        if len(numeric_lines) >= 2:
+            total = _parse_german_float(numeric_lines[0].split()[0])
+            up = _parse_german_float(numeric_lines[1].split()[0])
+        if len(numeric_lines) >= 3:
+            parts = numeric_lines[2].split()
+            qty = _parse_german_float(parts[0])
+            unit = parts[1] if len(parts) > 1 else None
+
+        if total is not None:
+            positions.append({
+                "oz": oz,
+                "description": title,
+                "qty": qty,
+                "unit": unit,
+                "unit_price": up,
+                "total": total,
+            })
+
+    return positions
+
+def extract_lv_positions_regex(pdf_bytes: bytes) -> list[dict]:
+    """
+    Public entry point: extract original LV positions from PDF via regex.
+    Called by nachtrag_scorer.py — replaces _extract_lv_from_pdf_text (Claude-based).
+    Handles 100+ position LVs without any token limits.
+    """
+    text, _ = extract_text(pdf_bytes)
+    return _extract_lv_positions_from_text(text)
+
+def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    """
+    Convenience wrapper: return just the text string from a PDF.
+    Used by nachtrag_qa.py for context extraction.
+    """
+    text, _ = extract_text(pdf_bytes)
+    return text
+
 def _extract_total_claimed(text: str) -> Optional[float]:
     """
     Find the total Nachtrag claim (Gesamtbetrag / Nachtragssumme).

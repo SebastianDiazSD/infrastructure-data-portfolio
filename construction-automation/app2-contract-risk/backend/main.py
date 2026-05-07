@@ -23,7 +23,7 @@ import hashlib
 import io
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -35,6 +35,7 @@ from risk_scorer import score_clauses, aggregate_risk_summary
 from nachtrag_scorer import analyze_nachtrag
 from exporter import export_risk_report_docx, export_stellungnahme_docx
 from contract_qa import answer_question
+from nachtrag_qa import answer_nachtrag_question
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -210,70 +211,62 @@ async def ask_contract(req: QARequest):
 @app.post("/analyze-nachtrag")
 async def analyze_nachtrag_endpoint(
     nachtrag: UploadFile = File(...),
-    original_lv: UploadFile = File(...),
+    original_lv: UploadFile = File(None),
+    baubeschreibung: UploadFile = File(None),
+    begründung: UploadFile = File(None),
+    kalkulation: UploadFile = File(None),
+    stage_override: str = None,
 ):
     """
     Accept:
-      - nachtrag:    contractor's Nachtrag claim (PDF)
-      - original_lv: original LV (PDF or GAEB .x83/.x84)
-
-    Returns:
-      {
-        "nachtrag_summary": {
-          "total_claimed": 45000.0,
-          "accepted_total": 12000.0,
-          "contested_total": 33000.0,
-          "recommendation": "negotiate",
-          "position_count": 5
-        },
-        "positions": [
-          {
-            "oz": "01.002.0030",
-            "nachtrag_description": "...",
-            "nachtrag_claimed_total": 9000.0,
-            "lv_oz": "01.002.0030",
-            "lv_unit_price": 120.0,
-            "assessment": "negotiate",
-            "vob_paragraph": "§2 Abs. 3 VOB/B",
-            "vob_reasoning": "...",
-            "price_assessment": "overstated",
-            "reason": "...",
-            "negotiation_position": "..."
-          }
-        ],
-        "stellungnahme": "Der Nachtrag wurde geprüft..."
-      }
+      nachtrag         required  — contractor's Nachtrag PDF (any path)
+      original_lv      optional  — original LV (PDF or GAEB). Without it,
+                                   review is limited to VOB/B principles only.
+      baubeschreibung  optional  — Baubeschreibung PDF
+      begründung       optional  — Nachtragsangebot / Begründung PDF
+      kalkulation      optional  — Kalkulation PDF
+      stage_override   optional  — "stage1" | "stage2" (overrides auto-detect)
     """
     _require_ext(nachtrag.filename, (".pdf",), "Nachtrag")
-    lv_ext = _require_ext(
-        original_lv.filename,
-        (".pdf", ".x83", ".x84", ".gaeb"),
-        "Original LV"
-    )
-
     nachtrag_bytes = await _read_upload(nachtrag, "Nachtrag PDF")
-    lv_bytes = await _read_upload(original_lv, "Original LV")
-
-    # Parse Nachtrag
     nachtrag_data = extract_nachtrag_data(nachtrag_bytes)
+
+    # Build extra context from optional supporting PDFs
+    extra_texts = []
+    for optional_file in [baubeschreibung, begründung, kalkulation]:
+        if optional_file and optional_file.filename:
+            _require_ext(optional_file.filename, (".pdf",), optional_file.filename)
+            b = await _read_upload(optional_file, optional_file.filename)
+            t, _ = extract_text(b)
+            extra_texts.append(t[:4000])
+    extra_context_text = "\n\n".join(extra_texts)
 
     # Parse LV
     lv_positions: list[dict] = []
     lv_pdf_bytes = None
 
-    if lv_ext in (".x83", ".x84", ".gaeb"):
-        try:
-            lv_positions = parse_gaeb_file(lv_bytes)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=f"GAEB parsing failed: {exc}"
-            )
-    else:
-        # PDF LV — nachtrag_scorer will extract positions via Claude
-        lv_pdf_bytes = lv_bytes
+    if original_lv and original_lv.filename:
+        lv_ext = _require_ext(
+            original_lv.filename,
+            (".pdf", ".x83", ".x84", ".gaeb"),
+            "Original LV"
+        )
+        lv_bytes = await _read_upload(original_lv, "Original LV")
+        if lv_ext in (".x83", ".x84", ".gaeb"):
+            try:
+                lv_positions = parse_gaeb_file(lv_bytes)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=f"GAEB parsing failed: {exc}")
+        else:
+            lv_pdf_bytes = lv_bytes
 
-    result = await analyze_nachtrag(nachtrag_data, lv_positions, lv_pdf_bytes)
+    result = await analyze_nachtrag(
+        nachtrag_data,
+        lv_positions,
+        lv_pdf_bytes,
+        extra_context_text=extra_context_text,
+        stage_override=stage_override,
+    )
     return result
 
 
@@ -307,6 +300,57 @@ async def export_stellungnahme(data: dict):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": 'attachment; filename="stellungnahme.docx"'},
     )
+
+class NachtragQARequest(BaseModel):
+    session_id: str
+    question: str
+
+_nachtrag_session_cache: dict[str, dict] = {}
+
+@app.post("/init-nachtrag-session")
+async def init_nachtrag_session(
+    nachtrag_doc: UploadFile = File(None),
+    original_lv: UploadFile = File(None),
+    baubeschreibung: UploadFile = File(None),
+    pasted_text: str = Form(""),
+):
+    """
+    Path C: initialize a Q&A session from informal documents.
+    Returns session_id for subsequent /ask-nachtrag calls.
+    """
+    context_parts = []
+    if pasted_text:
+        context_parts.append(("nachtrag_text", pasted_text[:6000]))
+
+    for label, upload in [("nachtrag_text", nachtrag_doc),
+                           ("lv_text", original_lv),
+                           ("baubeschreibung_text", baubeschreibung)]:
+        if upload and upload.filename:
+            _require_ext(upload.filename, (".pdf",), upload.filename)
+            b = await _read_upload(upload, upload.filename)
+            t, _ = extract_text(b)
+            context_parts.append((label, t[:6000]))
+
+    if not context_parts:
+        raise HTTPException(status_code=400, detail="At least one document or pasted text is required.")
+
+    context = {k: v for k, v in context_parts}
+    session_id = _md5((pasted_text + "".join(v for _, v in context_parts)).encode())
+    _nachtrag_session_cache[session_id] = context
+    return {"session_id": session_id, "sources": list(context.keys())}
+
+
+@app.post("/ask-nachtrag")
+async def ask_nachtrag(req: NachtragQARequest):
+    """Path C Q&A: answer questions about an informal NT or Anzeige."""
+    if not req.session_id or not req.question.strip():
+        raise HTTPException(status_code=400, detail="session_id and question are required.")
+    context = _nachtrag_session_cache.get(req.session_id)
+    if not context:
+        raise HTTPException(status_code=404, detail="Session not found. Upload documents first.")
+    if len(req.question) > 500:
+        raise HTTPException(status_code=400, detail="Question too long. Max 500 characters.")
+    return await answer_nachtrag_question(context, req.question)
 
 # ── Static frontend (production) ──────────────────────────────────────────────
 from fastapi.staticfiles import StaticFiles

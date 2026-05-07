@@ -27,6 +27,11 @@ export default function NachtragResult({ result, onExport, onReset }) {
   const [expanded, setExpanded] = useState(null)
   const [copied, setCopied] = useState(false)
 
+  // Stage 1 MKA response has different structure
+  if (result.stage === 'mka') {
+    return <Stage1Result result={result} onReset={onReset} />
+  }
+
   const rec = REC_COLORS[result.nachtrag_summary?.recommendation] ?? REC_COLORS.negotiate
 
   function copy() {
@@ -164,6 +169,93 @@ function Row({ label, children }) {
     <div>
       <p className="text-[#484f58] text-[10px] mb-1">{label}</p>
       <p className="text-[#8b949e] text-xs leading-relaxed">{children}</p>
+    </div>
+  )
+}
+
+function Stage1Result({ result, onReset }) {
+  const [copied, setCopied] = useState(false)
+  const s = result.nachtrag_summary ?? {}
+
+  const ASSESSMENT_COLOR = {
+    justified: 'text-green-400 border-green-800 bg-green-950',
+    partly_justified: 'text-amber-400 border-amber-800 bg-amber-950',
+    not_justified: 'text-red-400 border-red-800 bg-red-950',
+    insufficient_info: 'text-[#8b949e] border-[#30363d] bg-[#161b22]',
+  }
+  const cls = ASSESSMENT_COLOR[s.principal_assessment] ?? ASSESSMENT_COLOR.insufficient_info
+
+  function copy() {
+    navigator.clipboard.writeText(result.stellungnahme ?? '')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden fade-in">
+      {/* Header bar */}
+      <div className="px-6 py-3 border-b border-[#30363d] flex items-center gap-4 flex-wrap">
+        <span className={`px-3 py-1 rounded border text-xs font-semibold ${cls}`}>
+          Stage 1 — {(s.principal_assessment ?? 'insufficient_info').replace(/_/g, ' ').toUpperCase()}
+        </span>
+        <span className="text-[#8b949e] text-xs">{s.vob_paragraph}</span>
+        <button onClick={onReset} className="ml-auto px-3 py-1.5 text-xs text-[#8b949e] hover:text-white transition-colors">
+          New file
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: assessment details */}
+        <div className="w-1/2 border-r border-[#30363d] overflow-y-auto p-6 space-y-4">
+          <div>
+            <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">Preliminary position</p>
+            <span className={`inline-block px-3 py-1 rounded border text-xs font-medium ${cls}`}>
+              {(s.preliminary_position ?? '—').replace(/_/g, ' ').toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">AG-Anordnung dokumentiert</p>
+            <span className={s.ag_order_documented ? 'text-green-400 text-xs' : 'text-red-400 text-xs'}>
+              {s.ag_order_documented ? '✓ Ja' : '✗ Nicht nachgewiesen'}
+            </span>
+          </div>
+          {result.reason && (
+            <div>
+              <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">Begründung</p>
+              <p className="text-[#8b949e] text-xs leading-relaxed">{result.reason}</p>
+            </div>
+          )}
+          {result.missing_documentation?.length > 0 && (
+            <div>
+              <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">Fehlende Unterlagen</p>
+              <ul className="space-y-1">
+                {result.missing_documentation.map((item, i) => (
+                  <li key={i} className="text-amber-400 text-xs flex gap-2">
+                    <span className="shrink-0">•</span>{item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Stellungnahme */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="font-display text-base text-white">Stellungnahme (Entwurf)</span>
+            <button onClick={copy}
+              className="px-2.5 py-1 text-[10px] bg-[#21262d] border border-[#30363d] text-[#8b949e] hover:text-white rounded transition-colors">
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 flex-1 overflow-y-auto">
+            <pre className="text-[#8b949e] text-xs font-clause whitespace-pre-wrap leading-relaxed">
+              {result.stellungnahme ?? 'No Stellungnahme generated.'}
+            </pre>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -27,11 +27,12 @@ Position matching strategy:
 import os
 import json
 import asyncio
+import re
 from difflib import SequenceMatcher
 from typing import Optional
 
 from anthropic import AsyncAnthropic
-from parser import extract_text  # needed for PDF LV fallback
+from parser import extract_text, extract_lv_positions_regex  # needed for PDF LV fallback
 
 def _get_client() -> AsyncAnthropic:
     key = os.getenv("ANTHROPIC_API_KEY")
@@ -202,10 +203,12 @@ def _match_positions(nachtrag_positions: list[dict], lv_positions: list[dict]) -
         match_type = "no_match"
         similarity = 0.0
 
-        # Pass 1: exact OZ match
+        # Pass 1: OZ match — normalize both sides to XX.YY.ZZZZ
+        # NT uses 9X Zulage prefix; LV uses 0X prefix — _normalize_oz maps them
         if np.get("oz"):
+            np_oz_norm = _normalize_oz(np["oz"])
             for lp in lv_positions:
-                if lp.get("oz") and np["oz"].strip() == lp["oz"].strip():
+                if lp.get("oz") and _normalize_oz(lp["oz"]) == np_oz_norm:
                     matched_lv = lp
                     match_type = "oz_exact"
                     break
@@ -310,6 +313,52 @@ def _safe_float(v) -> float:
     except (TypeError, ValueError):
         return 0.0
 
+def _normalize_oz(oz: str) -> str:
+    """
+    Normalize OZ to canonical XX.YY.ZZZZ for cross-format comparison.
+
+    NT Zulage positions use 9X chapter prefix:
+      91.2.20, 92.16.120, 93.14.180 → 01.02.0020, 02.16.0120, 03.14.0180
+
+    LV positions use 0X chapter prefix (already canonical):
+      01.02.0020, 02.16.0120 → unchanged
+
+    Mapping: first digit 9 → 0, then zero-pad section to 2 digits,
+    position to 4 digits.
+
+    NT 94.x.x positions (new scope) normalize to 04.x.x and attempt a match.
+    If no LV position exists at 04.x.x → correctly falls through to no_match.
+    """
+    if not oz:
+        return ""
+    parts = oz.strip().rstrip('.').split('.')
+    if len(parts) != 3:
+        return oz.strip()
+    chapter, section, pos = parts
+    if len(chapter) == 2 and chapter[0] == '9':
+        chapter = '0' + chapter[1]
+    try:
+        chapter = str(int(chapter)).zfill(2)
+        section = str(int(section)).zfill(2)
+        pos = str(int(pos)).zfill(4)
+    except ValueError:
+        return oz.strip()
+    return f"{chapter}.{section}.{pos}"
+
+
+def _is_stage1_document(text: str) -> bool:
+    """
+    Detect Stage 1 Anzeige documents.
+    Primary trigger: title 'Anzeige einer Vertragsabweichung' in first 3 pages
+    (~9000 chars). Secondary: fewer than 3 extracted positions.
+    Both checks used by caller — this only returns the title check.
+    """
+    first_pages = text[:9000]
+    return bool(re.search(
+        r'Anzeige\s+einer\s+Vertragsabweichung',
+        first_pages,
+        re.IGNORECASE
+    ))
 
 def _qty_delta_pct(lp: dict, np_: dict) -> str:
     lv_qty = _safe_float(lp.get("qty"))
@@ -578,9 +627,11 @@ async def _analyze_mka(full_text: str, begründung: str) -> dict:
 # ── Public entry point ────────────────────────────────────────────────────────
 
 async def analyze_nachtrag(
-    nachtrag_data: dict,       # from parser.extract_nachtrag_data()
-    lv_positions: list[dict],  # from gaeb_parser (may be [])
-    lv_pdf_bytes: Optional[bytes] = None,  # if LV is PDF, not GAEB
+    nachtrag_data: dict,
+    lv_positions: list[dict],
+    lv_pdf_bytes: Optional[bytes] = None,
+    extra_context_text: str = "",   # text from Begründung/Kalkulation PDFs
+    stage_override: Optional[str] = None,  # "stage1" | "stage2" | None
 ) -> dict:
     """
     Full Mode B pipeline. Called by main.py /analyze-nachtrag endpoint.
@@ -600,15 +651,30 @@ async def analyze_nachtrag(
         if not total_claimed:
             total_claimed = extracted.get("total_claimed") or 0.0
 
-    # Stage 1 detection: after Claude extraction, still no positions
-    # → this is an MKA/Anzeige document without a position table
-    if len(regex_positions) == 0:
-        return await _analyze_mka(nachtrag_data["full_text"], begründung)
+    # Stage 1 detection:
+    # Trigger when explicitly overridden to stage1,
+    # OR when document has Anzeige title AND fewer than 3 positions
+    full_text = nachtrag_data["full_text"]
+    is_stage1 = (
+            stage_override == "stage1"
+            or (
+                    stage_override != "stage2"
+                    and len(regex_positions) < 3
+                    and _is_stage1_document(full_text)
+            )
+            or (stage_override != "stage2" and len(regex_positions) == 0)
+    )
+    if is_stage1:
+        return await _analyze_mka(full_text, begründung)
 
-    # Step 2: if LV is PDF, extract positions from it
+    # Merge extra context into begründung if provided
+    if extra_context_text:
+        begründung = f"{begründung}\n\n--- Weitere Unterlagen ---\n{extra_context_text[:3000]}"
+
+    # Step 2: if LV is PDF, extract positions via regex (not LLM)
+    # _extract_lv_from_pdf_text was limited to 8000 chars — insufficient for 100+ position LVs
     if lv_pdf_bytes and not lv_positions:
-        lv_text, _ = extract_text(lv_pdf_bytes)
-        lv_positions = await _extract_lv_from_pdf_text(lv_text)
+        lv_positions = extract_lv_positions_regex(lv_pdf_bytes)
 
     # Step 3: match positions
     matched = _match_positions(regex_positions, lv_positions)

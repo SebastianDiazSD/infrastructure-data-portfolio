@@ -69,11 +69,17 @@ export default function App() {
   }
 
   // ── Mode B ──────────────────────────────────────────────
-  async function analyzeNachtrag(nachtragFile, lvFile) {
+  async function analyzeNachtrag(files) {
+    // files: { nachtrag, original_lv?, baubeschreibung?, begründung?,
+    //          kalkulation?, stage_override? }
     setModeB({ status: 'loading', result: null, error: null })
     const fd = new FormData()
-    fd.append('nachtrag', nachtragFile)
-    fd.append('original_lv', lvFile)
+    fd.append('nachtrag', files.nachtrag)
+    if (files.original_lv)      fd.append('original_lv',     files.original_lv)
+    if (files.baubeschreibung)  fd.append('baubeschreibung',  files.baubeschreibung)
+    if (files.begründung)       fd.append('begründung',       files.begründung)
+    if (files.kalkulation)      fd.append('kalkulation',      files.kalkulation)
+    if (files.stage_override)   fd.append('stage_override',   files.stage_override)
     try {
       const res = await fetch('/analyze-nachtrag', { method: 'POST', body: fd })
       if (!res.ok) {
