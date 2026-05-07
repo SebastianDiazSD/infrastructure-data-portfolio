@@ -306,6 +306,82 @@ JSON:
   "negotiation_position": "Empfohlene Verhandlungsposition des AG (max. 80 Wörter)"
 }}"""
 
+# ── Begründung summary extraction ─────────────────────────────────────────────
+# Called once before position scoring. Converts raw Begründung text (any size)
+# into a structured ~250-word summary that fits cleanly in every position prompt.
+# This makes position scoring independent of Begründung file size.
+
+_BEGR_SUMMARY_SYSTEM = (
+    "Du bist ein Baurechts-Sachverständiger. "
+    "Extrahiere die wesentlichen Informationen aus einer Nachtragsbegründung. "
+    "Antworte ausschließlich mit validem JSON. Kein Markdown außerhalb des JSON."
+)
+
+_BEGR_SUMMARY_PROMPT = """\
+Fasse diese Nachtragsbegründung strukturiert zusammen.
+
+TEXT:
+{text}
+
+JSON:
+{{
+  "ag_order_date": "Datum der AG-Anordnung oder null",
+  "ag_order_reference": "Dokumentenreferenz der AG-Anordnung (z.B. Schreiben vom XX.XX.XXXX)",
+  "schedule_impact": "Zusammenfassung der Terminverschiebungen (max. 2 Sätze)",
+  "legal_basis_primary": "Primärer VOB/B-Paragraph (z.B. §2 Abs. 5)",
+  "cost_drivers": ["Kostentreiber 1", "Kostentreiber 2", "Kostentreiber 3"],
+  "affected_chapters": ["01", "02", "03"],
+  "summary_text": "Zusammenfassung in max. 150 Wörtern für Prüfer — sachlich, vollständig"
+}}"""
+
+
+async def _extract_begründung_summary(text: str) -> str:
+    """
+    Extract a structured summary from Begründung text.
+    Called once per request — result reused for all position scorings.
+    Falls back to truncated raw text if extraction fails.
+    """
+    global _client
+    if _client is None:
+        _client = _get_client()
+
+    # Use first 15000 chars — covers up to ~10 pages of a typical Begründung.
+    # For very large files, the opening sections contain the legal basis and
+    # schedule impact; per-position detail is in the NT-LV (already parsed).
+    text_for_summary = text[:15000]
+
+    try:
+        msg = await _client.messages.create(
+            model=_MODEL,
+            max_tokens=600,
+            system=_BEGR_SUMMARY_SYSTEM,
+            messages=[{"role": "user", "content": _BEGR_SUMMARY_PROMPT.format(text=text_for_summary)}],
+        )
+        raw = msg.content[0].text.strip()
+        clean = raw
+        if clean.startswith("```"):
+            clean = clean.split("```")[1]
+            if clean.startswith("json"):
+                clean = clean[4:]
+            clean = clean.strip()
+        data = json.loads(clean)
+        # Build a compact prose summary for injection into position prompts
+        parts = []
+        if data.get("ag_order_reference"):
+            parts.append(f"AG-Anordnung: {data['ag_order_reference']}")
+        if data.get("schedule_impact"):
+            parts.append(f"Terminauswirkung: {data['schedule_impact']}")
+        if data.get("legal_basis_primary"):
+            parts.append(f"Rechtsgrundlage: {data['legal_basis_primary']}")
+        if data.get("cost_drivers"):
+            parts.append(f"Kostentreiber: {', '.join(data['cost_drivers'][:5])}")
+        if data.get("summary_text"):
+            parts.append(data["summary_text"])
+        return "\n".join(parts)
+    except Exception:
+        # Fallback: return truncated raw text — same as current behavior
+        return text[:2000]
+
 
 def _safe_float(v) -> float:
     try:
@@ -389,7 +465,7 @@ async def _score_position(match: dict, begründung: str) -> dict:
             n_up=np_.get("claimed_unit_price", "n/a"),
             n_total=np_.get("claimed_total", "n/a"),
             qty_delta_pct=_qty_delta_pct(lp, np_),
-            begruendung=begründung[:800],
+            begruendung=begründung[:8000],
         )
     else:
         prompt = _NEW_POSITION_PROMPT.format(
@@ -399,7 +475,7 @@ async def _score_position(match: dict, begründung: str) -> dict:
             n_unit=np_.get("unit", ""),
             n_up=np_.get("claimed_unit_price", "n/a"),
             n_total=np_.get("claimed_total", "n/a"),
-            begruendung=begründung[:800],
+            begruendung=begründung[:8000],
         )
 
     global _client
@@ -410,7 +486,7 @@ async def _score_position(match: dict, begründung: str) -> dict:
         try:
             msg = await _client.messages.create(
                 model=_MODEL,
-                max_tokens=500,
+                max_tokens=800,
                 system=_position_system(),
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -667,9 +743,15 @@ async def analyze_nachtrag(
     if is_stage1:
         return await _analyze_mka(full_text, begründung)
 
-    # Merge extra context into begründung if provided
+    # Merge extra context into begründung if provided.
+    # For large files, extract a structured summary first (one Claude call)
+    # so position scorings get clean context regardless of Begründung size.
     if extra_context_text:
-        begründung = f"{begründung}\n\n--- Weitere Unterlagen ---\n{extra_context_text[:3000]}"
+        if len(extra_context_text) > 2000:
+            begründung_summary = await _extract_begründung_summary(extra_context_text)
+        else:
+            begründung_summary = extra_context_text
+        begründung = f"{begründung}\n\n--- Nachtragsbegründung (Zusammenfassung) ---\n{begründung_summary}"
 
     # Step 2: if LV is PDF, extract positions via regex (not LLM)
     # _extract_lv_from_pdf_text was limited to 8000 chars — insufficient for 100+ position LVs

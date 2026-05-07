@@ -238,7 +238,7 @@ async def analyze_nachtrag_endpoint(
             _require_ext(optional_file.filename, (".pdf",), optional_file.filename)
             b = await _read_upload(optional_file, optional_file.filename)
             t, _ = extract_text(b)
-            extra_texts.append(t[:4000])
+            extra_texts.append(t[:30000])
     extra_context_text = "\n\n".join(extra_texts)
 
     # Parse LV
