@@ -6,6 +6,12 @@ const ASSESS_BADGE = {
   reject: 'bg-red-950 text-red-400 border border-red-800',
 }
 
+const ASSESS_LABEL = {
+  accept: 'Akzeptiert',
+  negotiate: 'Verhandeln',
+  reject: 'Ablehnen',
+}
+
 const REC_COLORS = {
   accept: { border: 'border-green-800', text: 'text-green-400', bg: 'bg-green-950' },
   negotiate: { border: 'border-amber-800', text: 'text-amber-400', bg: 'bg-amber-950' },
@@ -29,7 +35,7 @@ export default function NachtragResult({ result, onExport, onReset }) {
 
   // Stage 1 MKA response has different structure
   if (result.stage === 'mka') {
-    return <Stage1Result result={result} onReset={onReset} />
+    return <Stage1Result result={result} onExport={onExport} onReset={onReset} />
   }
 
   const rec = REC_COLORS[result.nachtrag_summary?.recommendation] ?? REC_COLORS.negotiate
@@ -130,10 +136,16 @@ function PositionCard({ pos, open, onToggle }) {
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="font-clause text-xs text-white">{pos.oz}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${ASSESS_BADGE[pos.assessment] ?? ASSESS_BADGE.negotiate}`}>
-              {pos.assessment}
+              {ASSESS_LABEL[pos.assessment] ?? 'Prüfen'}
             </span>
             {matchLabel && (
-              <span className="text-[#484f58] text-[10px]">{matchLabel}{simPct}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                pos.match_type === 'no_match'
+                  ? 'border-amber-800/50 text-amber-400'
+                  : 'border-[#30363d] text-[#8b949e]'
+              }`}>
+                {matchLabel}{simPct}
+              </span>
             )}
           </div>
           <p className="text-[#8b949e] text-xs truncate">{pos.nachtrag_description}</p>
@@ -144,17 +156,39 @@ function PositionCard({ pos, open, onToggle }) {
 
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-[#30363d] pt-3">
+
+          {/* LV vs NT comparison — shown when a matching LV position exists */}
+          {pos.lv_oz && (
+            <div className="bg-[#0d1117] border border-[#30363d] rounded p-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px]">
+              <p className="col-span-2 text-[#484f58] uppercase tracking-wider mb-1">LV vs. Nachtrag</p>
+              <span className="text-[#484f58]">LV-OZ</span>
+              <span className="text-[#c9d1d9] font-clause">{pos.lv_oz}</span>
+              {pos.lv_description && <>
+                <span className="text-[#484f58]">LV-Beschreibung</span>
+                <span className="text-[#8b949e] leading-relaxed">{pos.lv_description}</span>
+              </>}
+              <span className="text-[#484f58]">LV-EP</span>
+              <span className="text-[#c9d1d9]">{eur(pos.lv_unit_price)}</span>
+              <span className="text-[#484f58]">LV-Gesamt</span>
+              <span className="text-[#c9d1d9]">{eur(pos.lv_total)}</span>
+              <span className="text-[#484f58]">NT-EP (gefordert)</span>
+              <span className="text-amber-300">{eur(pos.nachtrag_claimed_unit_price)}</span>
+              <span className="text-[#484f58]">NT-Gesamt (gefordert)</span>
+              <span className="text-amber-300">{eur(pos.nachtrag_claimed_total)}</span>
+            </div>
+          )}
+
           {pos.vob_paragraph && (
-            <Row label="VOB/B reference">
+            <Row label="VOB/B Paragraph">
               <span className="text-[#388bfd] font-clause">{pos.vob_paragraph}</span>
             </Row>
           )}
-          {pos.vob_reasoning && <Row label="Legal basis">{pos.vob_reasoning}</Row>}
-          {pos.price_assessment && <Row label="Price assessment">{pos.price_assessment}</Row>}
-          {pos.reason && <Row label="Reason">{pos.reason}</Row>}
+          {pos.vob_reasoning && <Row label="Rechtliche Grundlage">{pos.vob_reasoning}</Row>}
+          {pos.price_assessment && <Row label="Preisbewertung">{pos.price_assessment}</Row>}
+          {pos.reason && <Row label="Begründung">{pos.reason}</Row>}
           {pos.negotiation_position && (
             <div className="bg-amber-950/30 border border-amber-800/30 rounded p-2">
-              <p className="text-[#484f58] text-[10px] mb-1">Negotiation position</p>
+              <p className="text-[#484f58] text-[10px] mb-1">Verhandlungsposition</p>
               <p className="text-amber-300 text-xs leading-relaxed">{pos.negotiation_position}</p>
             </div>
           )}
@@ -173,7 +207,7 @@ function Row({ label, children }) {
   )
 }
 
-function Stage1Result({ result, onReset }) {
+function Stage1Result({ result, onExport, onReset }) {
   const [copied, setCopied] = useState(false)
   const s = result.nachtrag_summary ?? {}
 
@@ -183,7 +217,8 @@ function Stage1Result({ result, onReset }) {
     not_justified: 'text-red-400 border-red-800 bg-red-950',
     insufficient_info: 'text-[#8b949e] border-[#30363d] bg-[#161b22]',
   }
-  const cls = ASSESSMENT_COLOR[s.principal_assessment] ?? ASSESSMENT_COLOR.insufficient_info
+  const assessment = s.principal_assessment ?? s.preliminary_position ?? 'insufficient_info'
+  const cls = ASSESSMENT_COLOR[assessment] ?? ASSESSMENT_COLOR.insufficient_info
 
   function copy() {
     navigator.clipboard.writeText(result.stellungnahme ?? '')
@@ -196,12 +231,24 @@ function Stage1Result({ result, onReset }) {
       {/* Header bar */}
       <div className="px-6 py-3 border-b border-[#30363d] flex items-center gap-4 flex-wrap">
         <span className={`px-3 py-1 rounded border text-xs font-semibold ${cls}`}>
-          Stage 1 — {(s.principal_assessment ?? 'insufficient_info').replace(/_/g, ' ').toUpperCase()}
+          Stage 1 — {assessment.replace(/_/g, ' ').toUpperCase()}
         </span>
-        <span className="text-[#8b949e] text-xs">{s.vob_paragraph}</span>
-        <button onClick={onReset} className="ml-auto px-3 py-1.5 text-xs text-[#8b949e] hover:text-white transition-colors">
-          New file
-        </button>
+        {s.vob_paragraph && (
+          <span className="text-[#8b949e] text-xs">
+            VOB/B: <span className="text-[#c9d1d9] font-clause">{s.vob_paragraph}</span>
+          </span>
+        )}
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={onExport}
+            className="px-3 py-1.5 text-xs font-medium bg-[#21262d] border border-[#30363d] text-white rounded hover:bg-[#30363d] transition-colors"
+          >
+            Export Stellungnahme
+          </button>
+          <button onClick={onReset} className="px-3 py-1.5 text-xs text-[#8b949e] hover:text-white transition-colors">
+            Neue Datei
+          </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -209,16 +256,22 @@ function Stage1Result({ result, onReset }) {
         {/* Left: assessment details */}
         <div className="w-1/2 border-r border-[#30363d] overflow-y-auto p-6 space-y-4">
           <div>
-            <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">Preliminary position</p>
+            <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">Vorläufige Bewertung</p>
             <span className={`inline-block px-3 py-1 rounded border text-xs font-medium ${cls}`}>
               {(s.preliminary_position ?? '—').replace(/_/g, ' ').toUpperCase()}
             </span>
           </div>
           <div>
             <p className="text-[#484f58] text-[10px] uppercase tracking-wider mb-2">AG-Anordnung dokumentiert</p>
-            <span className={s.ag_order_documented ? 'text-green-400 text-xs' : 'text-red-400 text-xs'}>
-              {s.ag_order_documented ? '✓ Ja' : '✗ Nicht nachgewiesen'}
-            </span>
+            {s.ag_order_documented === true && (
+              <span className="text-green-400 text-xs">✓ Ja</span>
+            )}
+            {s.ag_order_documented === false && (
+              <span className="text-red-400 text-xs">✗ Nicht nachgewiesen</span>
+            )}
+            {s.ag_order_documented == null && (
+              <span className="text-[#8b949e] text-xs">— Keine Angabe</span>
+            )}
           </div>
           {result.reason && (
             <div>

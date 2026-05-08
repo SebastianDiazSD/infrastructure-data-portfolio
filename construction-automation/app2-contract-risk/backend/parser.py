@@ -197,6 +197,11 @@ def _extract_positions_regex(text: str) -> list[dict]:
 
 _NT_LV_OZ_RE = re.compile(r'^(\d{2}\.\d+\.\d+)\.\s*$', re.MULTILINE)
 
+# Matches NT-LV single-line tabular data: "1,000 psch 72.302,42 (72.302,42)"
+# Handles Bedarfsposition parenthetical totals. Groups: qty, unit, unit_price, total
+_LV_DATA_LINE_RE = re.compile(
+    r'^([\d.,]+)\s+([a-zA-Zäöüm²³/]{1,15})\s+([\d.,]+)\s+\(?([\d.,]+)\)?'
+)
 
 def _extract_nt_lv_positions(text: str) -> list[dict]:
     """
@@ -219,31 +224,57 @@ def _extract_nt_lv_positions(text: str) -> list[dict]:
         end_line = oz_indices[idx + 1][0] if idx + 1 < len(oz_indices) else len(lines)
         segment = lines[line_i:end_line]
 
-        # Title = first non-empty line after OZ
+        # Skip cancelled positions: "*** Position entfällt" (common in German NT-LV)
+        segment_head = '\n'.join(segment[:4])
+        if re.search(r'entf[äa]llt', segment_head, re.IGNORECASE):
+            continue
+
+        # Title = first non-empty, non-marker line after OZ
+        # Skip "*** Bedarfsposition ..." and similar prefix markers
         title = ""
-        for line in segment[1:4]:
-            if line.strip():
-                title = line.strip()
+        for line in segment[1:8]:
+            s = line.strip()
+            if s and not s.startswith('***'):
+                title = s
                 break
 
-        # Prices are the last 3 numeric-ish lines before the next OZ
-        # Pattern from end: total / unit_price / qty+unit
-        numeric_lines = []
+        # Pass 1: single-line tabular data "qty unit price (total)"
+        # Handles Bedarfsposition format: 1,000 psch 72.302,42 (72.302,42)
+        total, up, qty, unit = None, None, None, None
         for line in reversed(segment):
             s = line.strip()
-            if re.match(r'^[\d.,]+(\s+[a-zA-Zäöüm²³/]+)?\s*$', s) and s:
-                numeric_lines.append(s)
-            if len(numeric_lines) == 3:
+            m = _LV_DATA_LINE_RE.match(s)
+            if m:
+                qty = _parse_german_float(m.group(1))
+                unit = m.group(2)
+                up = _parse_german_float(m.group(3))
+                total = _parse_german_float(m.group(4))
                 break
 
-        total, up, qty, unit = None, None, None, None
-        if len(numeric_lines) >= 2:
-            total = _parse_german_float(numeric_lines[0].split()[0])
-            up = _parse_german_float(numeric_lines[1].split()[0])
-        if len(numeric_lines) >= 3:
-            parts = numeric_lines[2].split()
-            qty = _parse_german_float(parts[0])
-            unit = parts[1] if len(parts) > 1 else None
+        # Pass 2: fallback multi-line scan (original logic + parenthetical strip)
+        if total is None:
+            numeric_lines = []
+            unit_fallback = None
+            for line in reversed(segment):
+                s = line.strip()
+                # Strip parenthetical totals: (72.302,42) → 72.302,42
+                s_clean = re.sub(r'^\(([\d.,]+)\)\s*$', r'\1', s)
+                if re.match(r'^[\d.,]+(\s+[a-zA-Zäöüm²³/]+)?\s*$', s_clean) and s_clean:
+                    numeric_lines.append(s_clean)
+                elif re.match(r'^[a-zA-Zäöüm²³/]{1,10}$', s) and unit_fallback is None:
+                    unit_fallback = s  # standalone unit line (e.g. "psch" on its own)
+                if len(numeric_lines) == 3:
+                    break
+
+            if len(numeric_lines) >= 2:
+                total = _parse_german_float(numeric_lines[0].split()[0])
+                up = _parse_german_float(numeric_lines[1].split()[0])
+            if len(numeric_lines) >= 3:
+                parts = numeric_lines[2].split()
+                qty = _parse_german_float(parts[0])
+                unit = parts[1] if len(parts) > 1 else unit_fallback
+            elif unit_fallback:
+                unit = unit_fallback
 
         if total is not None:
             positions.append({
@@ -278,28 +309,56 @@ def _extract_lv_positions_from_text(text: str) -> list[dict]:
         end_line = oz_indices[idx + 1][0] if idx + 1 < len(oz_indices) else len(lines)
         segment = lines[line_i:end_line]
 
+        # Skip cancelled positions: "*** Position entfällt" (common in German NT-LV)
+        segment_head = '\n'.join(segment[:4])
+        if re.search(r'entf[äa]llt', segment_head, re.IGNORECASE):
+            continue
+
+        # Title = first non-empty, non-marker line after OZ
         title = ""
-        for line in segment[1:4]:
-            if line.strip():
-                title = line.strip()
+        for line in segment[1:8]:
+            s = line.strip()
+            if s and not s.startswith('***'):
+                title = s
                 break
 
-        numeric_lines = []
+        # Pass 1: single-line tabular data "qty unit price (total)"
+        # Handles Bedarfsposition format: 1,000 psch 72.302,42 (72.302,42)
+        total, up, qty, unit = None, None, None, None
         for line in reversed(segment):
             s = line.strip()
-            if re.match(r'^[\d.,]+(\s+[a-zA-Zäöüm²³/]+)?\s*$', s) and s:
-                numeric_lines.append(s)
-            if len(numeric_lines) == 3:
+            m = _LV_DATA_LINE_RE.match(s)
+            if m:
+                qty = _parse_german_float(m.group(1))
+                unit = m.group(2)
+                up = _parse_german_float(m.group(3))
+                total = _parse_german_float(m.group(4))
                 break
 
-        total, up, qty, unit = None, None, None, None
-        if len(numeric_lines) >= 2:
-            total = _parse_german_float(numeric_lines[0].split()[0])
-            up = _parse_german_float(numeric_lines[1].split()[0])
-        if len(numeric_lines) >= 3:
-            parts = numeric_lines[2].split()
-            qty = _parse_german_float(parts[0])
-            unit = parts[1] if len(parts) > 1 else None
+        # Pass 2: fallback multi-line scan (original logic + parenthetical strip)
+        if total is None:
+            numeric_lines = []
+            unit_fallback = None
+            for line in reversed(segment):
+                s = line.strip()
+                # Strip parenthetical totals: (72.302,42) → 72.302,42
+                s_clean = re.sub(r'^\(([\d.,]+)\)\s*$', r'\1', s)
+                if re.match(r'^[\d.,]+(\s+[a-zA-Zäöüm²³/]+)?\s*$', s_clean) and s_clean:
+                    numeric_lines.append(s_clean)
+                elif re.match(r'^[a-zA-Zäöüm²³/]{1,10}$', s) and unit_fallback is None:
+                    unit_fallback = s  # standalone unit line (e.g. "psch" on its own)
+                if len(numeric_lines) == 3:
+                    break
+
+            if len(numeric_lines) >= 2:
+                total = _parse_german_float(numeric_lines[0].split()[0])
+                up = _parse_german_float(numeric_lines[1].split()[0])
+            if len(numeric_lines) >= 3:
+                parts = numeric_lines[2].split()
+                qty = _parse_german_float(parts[0])
+                unit = parts[1] if len(parts) > 1 else unit_fallback
+            elif unit_fallback:
+                unit = unit_fallback
 
         if total is not None:
             positions.append({
