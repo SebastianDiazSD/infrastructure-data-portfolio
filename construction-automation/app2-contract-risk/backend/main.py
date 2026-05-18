@@ -22,8 +22,13 @@ import os
 import hashlib
 import io
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -53,6 +58,9 @@ _cache: dict[str, dict] = {}
 # Clause-only cache for Q&A — keyed by same MD5 as _cache
 _clause_cache: dict[str, list] = {}
 
+# ── Rate limiter ──────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+
 
 def _md5(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
@@ -75,8 +83,11 @@ app.add_middleware(
     allow_credentials=False,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+
+# ── Helpers
 
 async def _read_upload(file: UploadFile, label: str = "file") -> bytes:
     """Read upload and enforce size limit."""
@@ -109,7 +120,8 @@ def health():
 # ── Mode A: Pre-signing VOB/B risk ────────────────────────────────────────────
 
 @app.post("/analyze-contract")
-async def analyze_contract(file: UploadFile = File(...)):
+@limiter.limit("20/minute")
+async def analyze_contract(request: Request, file: UploadFile = File(...)):
     """
     Accept a VOB/B contract PDF.
     Returns structured clause list with risk assessment.
@@ -209,7 +221,9 @@ async def ask_contract(req: QARequest):
 # ── Mode B: Nachtrag review ───────────────────────────────────────────────────
 
 @app.post("/analyze-nachtrag")
+@limiter.limit("20/minute")
 async def analyze_nachtrag_endpoint(
+    request: Request,
     nachtrag: UploadFile = File(...),
     original_lv: UploadFile = File(None),
     baubeschreibung: UploadFile = File(None),
