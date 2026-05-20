@@ -13,9 +13,16 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-antd': ['antd', '@ant-design/icons'],
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/@ant-design/icons')) {
+            return 'vendor-icons';
+          }
+          if (id.includes('node_modules/antd')) {
+            return 'vendor-antd';
+          }
         },
       },
     },
