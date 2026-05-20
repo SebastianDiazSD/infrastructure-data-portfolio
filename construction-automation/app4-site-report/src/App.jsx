@@ -254,7 +254,7 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: "#111" }}>
         {renderTopBar()}
-        <ProjectForm initialLang={appLang} initialMode={formMode} />
+        <ProjectForm initialLang={appLang} initialMode={formMode} token={token} />
       </div>
     );
   }

@@ -1,12 +1,13 @@
 # app/routers/auth.py
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from bson import ObjectId
+import asyncio
 from jose import JWTError
+from app.database import get_db
 
 from app.models.user import UserCreate, UserLogin, UserResponse, TokenResponse
 from app.services.auth_service import hash_password, verify_password, create_access_token, decode_access_token
-from app.database import get_db
 from app.limiter import limiter
 from fastapi import Request as FastAPIRequest
 from collections import defaultdict
@@ -46,8 +47,10 @@ security = HTTPBearer()
 @router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(user: UserCreate):
     db = get_db()
-    existing = await db.users.find_one({"email": user.email})
-    if existing:
+    existing = await asyncio.to_thread(
+        lambda: db.table("users").select("id").eq("email", user.email).execute()
+    )
+    if existing.data:
         raise HTTPException(status_code=409, detail="Email already registered")
 
     doc = {
@@ -59,8 +62,10 @@ async def register(user: UserCreate):
         "default_project_id": user.default_project_id,
         "language": user.language,
     }
-    result = await db.users.insert_one(doc)
-    user_id = str(result.inserted_id)
+    result = await asyncio.to_thread(
+        lambda: db.table("users").insert(doc).execute()
+    )
+    user_id = result.data[0]["id"]
     token = create_access_token(user_id)
 
     return TokenResponse(
@@ -83,13 +88,16 @@ async def register(user: UserCreate):
 async def login(credentials: UserLogin, request: FastAPIRequest):
     _check_lockout(credentials.email)
     db = get_db()
-    user_doc = await db.users.find_one({"email": credentials.email})
+    result = await asyncio.to_thread(
+        lambda: db.table("users").select("*").eq("email", credentials.email).execute()
+    )
+    user_doc = result.data[0] if result.data else None
     if not user_doc or not verify_password(credentials.password, user_doc["hashed_password"]):
         _record_failure(credentials.email)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     _clear_failures(credentials.email)
-    user_id = str(user_doc["_id"])
+    user_id = user_doc["id"]
     token = create_access_token(user_id)
 
     return TokenResponse(
@@ -116,12 +124,44 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     db = get_db()
-    user_doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    result = await asyncio.to_thread(
+        lambda: db.table("users").select("*").eq("id", user_id).execute()
+    )
+    user_doc = result.data[0] if result.data else None
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
 
     return UserResponse(
-        id=str(user_doc["_id"]),
+        id=user_doc["id"],
+        email=user_doc["email"],
+        full_name=user_doc["full_name"],
+        role=user_doc["role"],
+        default_project_name=user_doc.get("default_project_name"),
+        default_project_id=user_doc.get("default_project_id"),
+        language=user_doc.get("language", "de"),
+    )
+# Allow anonymous use
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)
+    ),
+) -> Optional[UserResponse]:
+    """Returns user if valid token provided, None if anonymous."""
+    if not credentials:
+        return None
+    try:
+        user_id = decode_access_token(credentials.credentials)
+    except JWTError:
+        return None
+    db = get_db()
+    result = await asyncio.to_thread(
+        lambda: db.table("users").select("*").eq("id", user_id).execute()
+    )
+    user_doc = result.data[0] if result.data else None
+    if not user_doc:
+        return None
+    return UserResponse(
+        id=user_doc["id"],
         email=user_doc["email"],
         full_name=user_doc["full_name"],
         role=user_doc["role"],

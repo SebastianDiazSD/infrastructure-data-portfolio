@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.routers import report, voice, parse
 from contextlib import asynccontextmanager
-from app.database import connect_to_mongo, close_mongo_connection
+from app.database import init_supabase
 from app.routers.auth import router as auth_router
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -14,9 +14,8 @@ from fastapi import Response
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await connect_to_mongo()
+    init_supabase()
     yield
-    await close_mongo_connection()
 
 app=FastAPI(title="G2T Site Reporter API",lifespan=lifespan)
 

@@ -4,7 +4,7 @@ from app.services.claude_service import generate_report_text
 from app.services.docx_service import build_docx
 from fastapi.responses import StreamingResponse
 from fastapi import Request as FastAPIRequest
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_optional_user
 from app.services.report_store import save_report, get_reports
 from app.database import get_db
 from app.limiter import limiter
@@ -16,19 +16,20 @@ router = APIRouter()
 @router.post("/generate-report")
 @limiter.limit("20/minute")
 async def generate_report(
-    request: ReportRequest,
-    req: FastAPIRequest,
-    current_user=Depends(get_current_user),
+    body: ReportRequest,
+    request: FastAPIRequest,
+    current_user=Depends(get_optional_user),
 ):
-    if not request.work_summary.strip():
+    if not body.work_summary.strip():
         raise HTTPException(422, detail="work_summary is required")
     try:
-        report_text = await generate_report_text(request)
-        docx_bytes  = build_docx(request, report_text)
-        filename = f"Bautagesbericht_{request.project_id}_{request.date}.docx"
+        report_text = await generate_report_text(body)
+        docx_bytes  = build_docx(body, report_text)
+        filename = f"Bautagesbericht_{body.project_id}_{body.date}.docx"
 
         try:
-            await save_report(report_data=request.model_dump(), user_id=current_user.id)
+            user_id = current_user.id if current_user else None
+            await save_report(report_data=body.model_dump(), user_id=user_id)
         except Exception as store_err:
             print(f"[WARN] Report storage failed (non-blocking): {store_err}")
 
@@ -58,14 +59,15 @@ async def get_report(report_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Access denied")
     return doc
 
+# AFTER
 @router.put("/reports/{report_id}")
 async def update_report(
     report_id: str,
     updated_data: dict,
     current_user=Depends(get_current_user)
 ):
+    import asyncio
     from app.services.report_store import get_report_by_id
-    from bson import ObjectId
     doc = await get_report_by_id(report_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -74,8 +76,10 @@ async def update_report(
     if doc.get("locked"):
         raise HTTPException(status_code=403, detail="Report is locked — editing not permitted after 7 days")
     db = get_db()
-    await db.reports.update_one(
-        {"_id": ObjectId(report_id)},
-        {"$set": {"report_data": updated_data}}
+    await asyncio.to_thread(
+        lambda: db.table("reports")
+        .update({"report_data": updated_data})
+        .eq("id", report_id)
+        .execute()
     )
     return {"updated": True, "report_id": report_id}

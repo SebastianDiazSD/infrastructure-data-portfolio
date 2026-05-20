@@ -238,7 +238,7 @@ const SCHWERE_COLORS = {
   critical: { bg: "#2a0000", border: "#800000", text: "#f87171" },
 };
 
-export default function ProjectForm({ initialLang = "de", initialMode = "A" }) {
+export default function ProjectForm({ initialLang = "de", initialMode = "A", token = null }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [reportLang, setReportLang] = useState(initialLang);
   const t = LANG[reportLang] || LANG.de;
@@ -522,7 +522,13 @@ if (cleanedMissing.length === 0) {
       next_steps: activeExtraSteps.includes("naechsteSchritte") ? (naechsteSchritte || null) : null,
     };
     try {
-      const res = await fetch("/api/generate-report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch("/api/generate-report", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      });
       if (!res.ok) { let msg = `HTTP ${res.status}`; try { const d = await res.json(); msg = typeof d.detail === "string" ? d.detail : Array.isArray(d.detail) ? d.detail.map((e) => e.msg || JSON.stringify(e)).join(", ") : JSON.stringify(d); } catch (_) {} throw new Error(msg); }
       const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `Bautagesbericht_${projectId}_${reportDate?.format("YYYYMMDD") || "report"}.docx`; a.click(); URL.revokeObjectURL(url); setSuccess(true);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
