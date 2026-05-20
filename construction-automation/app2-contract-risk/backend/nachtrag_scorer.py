@@ -389,6 +389,16 @@ def _safe_float(v) -> float:
     except (TypeError, ValueError):
         return 0.0
 
+def _normalize_field(v):
+    """
+    Unwrap Claude extraction artifacts where a numeric field is returned as
+    {"source": "...", "parsedValue": 1234.56} instead of a plain float.
+    Returns None if v is None (preserves optional field semantics).
+    """
+    if isinstance(v, dict):
+        return v.get("parsedValue") or v.get("value")
+    return v
+
 def _normalize_oz(oz: str) -> str:
     """
     Normalize OZ to canonical XX.YY.ZZZZ for cross-format comparison.
@@ -529,14 +539,14 @@ async def _score_position(match: dict, begründung: str) -> dict:
     return {
         "oz": np_.get("oz"),
         "nachtrag_description": np_.get("description"),
-        "nachtrag_qty": np_.get("qty"),
+        "nachtrag_qty": _normalize_field(np_.get("qty")),
         "nachtrag_unit": np_.get("unit"),
-        "nachtrag_claimed_unit_price": np_.get("claimed_unit_price"),
-        "nachtrag_claimed_total": _safe_float(np_.get("claimed_total")),
+        "nachtrag_claimed_unit_price": _normalize_field(np_.get("claimed_unit_price")),
+        "nachtrag_claimed_total": _safe_float(_normalize_field(np_.get("claimed_total"))),
         "lv_oz": lp.get("oz") if lp else None,
         "lv_description": lp.get("description") if lp else None,
-        "lv_unit_price": lp.get("unit_price") if lp else None,
-        "lv_total": lp.get("total") if lp else None,
+        "lv_unit_price": _normalize_field(lp.get("unit_price")) if lp else None,
+        "lv_total": _normalize_field(lp.get("total")) if lp else None,
         "match_type": match["match_type"],
         **scoring,
     }
