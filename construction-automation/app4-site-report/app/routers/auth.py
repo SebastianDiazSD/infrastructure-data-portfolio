@@ -80,7 +80,7 @@ async def register(user: UserCreate):
 # ─── LOGIN ───────────────────────────────────────────────────────────
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-async def login(credentials: UserLogin, req: FastAPIRequest):
+async def login(credentials: UserLogin, request: FastAPIRequest):
     _check_lockout(credentials.email)
     db = get_db()
     user_doc = await db.users.find_one({"email": credentials.email})
