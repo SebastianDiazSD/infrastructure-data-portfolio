@@ -7,6 +7,36 @@ from jose import JWTError
 from app.models.user import UserCreate, UserLogin, UserResponse, TokenResponse
 from app.services.auth_service import hash_password, verify_password, create_access_token, decode_access_token
 from app.database import get_db
+from app.limiter import limiter
+from fastapi import Request as FastAPIRequest
+from collections import defaultdict
+from datetime import datetime, timezone, timedelta as _timedelta
+
+# ── In-memory login lockout ──────────────────────────────────────────
+# Resets on dyno restart — acceptable until Supabase migration
+# where this moves to a failed_logins table.
+_failed: dict[str, list[datetime]] = defaultdict(list)
+_MAX_ATTEMPTS = 5
+_WINDOW = _timedelta(minutes=15)
+_LOCKOUT = _timedelta(minutes=15)
+
+
+def _check_lockout(email: str) -> None:
+    now = datetime.now(timezone.utc)
+    _failed[email] = [t for t in _failed[email] if now - t < _WINDOW]
+    if len(_failed[email]) >= _MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed login attempts. Try again in 15 minutes."
+        )
+
+
+def _record_failure(email: str) -> None:
+    _failed[email].append(datetime.now(timezone.utc))
+
+
+def _clear_failures(email: str) -> None:
+    _failed[email] = []
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer()
@@ -49,12 +79,16 @@ async def register(user: UserCreate):
 
 # ─── LOGIN ───────────────────────────────────────────────────────────
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+@limiter.limit("10/minute")
+async def login(credentials: UserLogin, req: FastAPIRequest):
+    _check_lockout(credentials.email)
     db = get_db()
     user_doc = await db.users.find_one({"email": credentials.email})
     if not user_doc or not verify_password(credentials.password, user_doc["hashed_password"]):
+        _record_failure(credentials.email)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    _clear_failures(credentials.email)
     user_id = str(user_doc["_id"])
     token = create_access_token(user_id)
 

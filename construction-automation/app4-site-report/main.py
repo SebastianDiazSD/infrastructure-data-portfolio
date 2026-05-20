@@ -4,8 +4,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.routers import report, voice, parse
 from contextlib import asynccontextmanager
-from app.database import connect_to_mongo,close_mongo_connection
+from app.database import connect_to_mongo, close_mongo_connection
 from app.routers.auth import router as auth_router
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.limiter import limiter
 import os
 from fastapi import Response
 
@@ -17,13 +20,20 @@ async def lifespan(app: FastAPI):
 
 app=FastAPI(title="G2T Site Reporter API",lifespan=lifespan)
 
+_allowed_origins = os.environ.get(
+    "ALLOWED_ORIGINS", "http://localhost:5173"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Report generation
 app.include_router(report.router, prefix="/api")

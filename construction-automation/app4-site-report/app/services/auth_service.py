@@ -5,7 +5,12 @@ from jose import JWTError,jwt
 from datetime import datetime, timedelta,timezone
 from os import environ
 
-SECRET_KEY = environ.get("JWT_SECRET","dev-only-change-in-production")
+SECRET_KEY = environ.get("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET environment variable is not set. "
+        "Server cannot start without it."
+    )
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 
